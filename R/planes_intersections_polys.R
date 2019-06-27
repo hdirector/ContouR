@@ -1,12 +1,19 @@
 library('sp')
 
-#' Function to make a \code{SpatialPolygons} object
+#' Make a \code{SpatialPolygons} object from coordinates
 #' @param coords n x 2 matrix of coordinates with first column giving 
 #' x-coordinates and second column giving y-coordinates
 #' @param name character string giving name of polygon  
 #' @importFrom sp Polygon, Polygons, SpatialPolygons
 make_poly <- function(coords, name) {
   return(SpatialPolygons(list(Polygons(list(Polygon(coords)), name))))
+}
+
+#' Make a spatial lines object from a set of points
+#' @param p1 x and y coordinates of first point of edge
+#' @param p2 x any y coordinates of second point of edge
+make_line <- function(p1, p2, name) {
+  return(SpatialLines(list(Lines(Line(rbind(p1, p2)), name))))
 }
 
 
@@ -27,10 +34,17 @@ bbox <- function() {
 #' make the plane
 #' @importFrom rgeos gDifference
 int_half_plane <- function(p1, p2, poly, box) {
-  eps <- .01 #distance from 
+  eps <- .01 #distance to shift
   
-  ###vertical line
-  if (p1[1] == p2[1]) {
+  #find slope
+  if (p1[2] != p2[2]) {
+    m <- (p2[2]- p1[2])/(p2[1] - p1[1])
+  } else {
+    m <- Inf
+  }
+  
+  ###approximately vertical line
+  if (abs(m) > 1000) {
     half_plane <- make_poly(rbind(c(p1[1], 0), c(p1[1], 1), c(1, 1), c(1, 0)), 
                             "half_plane")
     mid <- (p1 + p2)/2
@@ -40,8 +54,8 @@ int_half_plane <- function(p1, p2, poly, box) {
       test_pt <- c(mid[1] + eps, mid[2])
       test_pt <- SpatialPoints(matrix(test_pt, ncol = 2))
     }
-  ###horizontal lines  
-  } else if (p1[2] == p2[2]) {
+  ###approximately horizontal lines  
+  } else if (abs(m) < .01) {
     half_plane <- make_poly(rbind(c(0, p1[2]), c(1, p1[2]), c(1, 0), c(0, 0)), 
                             "half_plane")
     mid <- (p1 + p2)/2
@@ -53,8 +67,8 @@ int_half_plane <- function(p1, p2, poly, box) {
     }
   ###typical case
   } else {
-    ##find slope and intercept
-    m <- (p2[2]- p1[2])/(p2[1] - p1[1])
+    ##find intercept
+
     b <- p1[2] - m*p1[1]
     
     ##find the two points that intersect with the bounding box
@@ -142,7 +156,9 @@ find_kernel <- function(coords) {
     temp_half_plane <- int_half_plane(p1 = coords[i,], p2 = coords[i + 1,], 
                                       poly = poly_curr, box = bb)
     kernel <- gIntersection(kernel, temp_half_plane)
+    if (is.null(kernel)) {return(NULL)}
   }
+  return(kernel)
 }
 
 
