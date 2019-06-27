@@ -6,9 +6,27 @@ library('sp')
 #' @param name character string giving name of polygon  
 #' @importFrom sp Polygon, Polygons, SpatialPolygons
 make_poly <- function(coords, name) {
-  return(SpatialPolygons(list(Polygons(list(Polygon(coords)), name))))
+  SpatialPolygons(list(Polygons(list(Polygon(coords)), name)))
 }
 
+#' Function to make a \code{SpatialLines} object
+#' @param coords n x 2 matrix of coordinates with first column giving 
+#' x-coordinates and second column giving y-coordinates
+#' @param p1 vector of coordinates of first point
+#' @param p2 vector of coordinates of second point
+#' @importFrom sp  SpatialLines
+make_line <- function(p1, p2, name) {
+  SpatialLines(list(Lines(Line(rbind(p1, p2)), name)))
+}
+
+
+#' Solve quadratic formula
+#' @param a a value in quadratic formula
+#' @param b b value in quadratic formula
+#' @param c c value in quadratic formula
+quad_form <- function(a, b, c) {
+  c((-b + sqrt((b^2) - 4*a*c))/(2*a),(-b - sqrt((b^2) - 4*a*c))/(2*a))
+}
 
 #' Function to make a bounding box normalized to have side lengths of 1
 bbox <- function() {
@@ -27,8 +45,7 @@ bbox <- function() {
 #' make the plane
 #' @importFrom rgeos gDifference
 int_half_plane <- function(p1, p2, poly, box) {
-  eps <- .01 #distance from 
-  
+  eps <- .001 #distance from 
   ###vertical line
   if (p1[1] == p2[1]) {
     half_plane <- make_poly(rbind(c(p1[1], 0), c(p1[1], 1), c(1, 1), c(1, 0)), 
@@ -40,7 +57,7 @@ int_half_plane <- function(p1, p2, poly, box) {
       test_pt <- c(mid[1] + eps, mid[2])
       test_pt <- SpatialPoints(matrix(test_pt, ncol = 2))
     }
-  ###horizontal lines  
+    ###horizontal lines  
   } else if (p1[2] == p2[2]) {
     half_plane <- make_poly(rbind(c(0, p1[2]), c(1, p1[2]), c(1, 0), c(0, 0)), 
                             "half_plane")
@@ -51,7 +68,7 @@ int_half_plane <- function(p1, p2, poly, box) {
       test_pt <- c(mid[1], mid[2] + eps)
       test_pt <- SpatialPoints(matrix(test_pt, ncol = 2))
     }
-  ###typical case
+    ###typical case
   } else {
     ##find slope and intercept
     m <- (p2[2]- p1[2])/(p2[1] - p1[1])
@@ -72,7 +89,7 @@ int_half_plane <- function(p1, p2, poly, box) {
       bd_pts <- rbind(bd_pts, c(1, y_1))
       cases[2] <- TRUE
     }
-   
+    
     x_0 <- -b/m #case 3, x given y = 0
     if (x_0 > 0 & x_0 < 1) {
       bd_pts <- rbind(bd_pts, c(x_0, 0))
@@ -108,14 +125,28 @@ int_half_plane <- function(p1, p2, poly, box) {
     #perpendicular line
     m_perp <- -1/m
     b_perp <- mid[2] - m_perp*mid[1]
-    test_pt <- c(mid[1] - eps, m_perp*(mid[1] - eps) + b_perp)
-    test_pt <- SpatialPoints(matrix(test_pt, ncol = 2))
+    
+    #find a test point that's within the bounding box formed by p1 and p2
+    test_x <- mid[1] - eps
+    test_y <- m_perp*(mid[1] - eps) + b_perp
+    on_edge <- ((test_x > min(p1[1], p2[1]) & (test_x < max(p1[1], p2[1])) &
+                (test_y > min(p1[2], p2[2])) & (test_y < max(p1[2], p2[2]))))   
+    while (!on_edge) {
+      eps <- eps/2
+      test_x <- mid[1] - eps
+      test_y <- m_perp*(mid[1] - eps) + b_perp
+      on_edge <- ((test_x > min(p1[1], p2[1]) & (test_x < max(p1[1], p2[1])) &
+                     (test_y > min(p1[2], p2[2])) & (test_y < max(p1[2], p2[2]))))   
+    }
+    test_pt <- SpatialPoints(matrix(c(test_x, test_y), ncol = 2))
+    
+    
     if (!gIntersects(test_pt, poly)) {
       test_pt <- c(mid[1] + eps, m_perp*(mid[1] + eps) + b_perp)
       test_pt <- SpatialPoints(matrix(test_pt, ncol = 2))
     }
   }
-    
+  
   ###find interior half plane
   if (gIntersects(test_pt, half_plane)) {
     return(gIntersection(poly, half_plane))
@@ -142,10 +173,7 @@ find_kernel <- function(coords) {
     temp_half_plane <- int_half_plane(p1 = coords[i,], p2 = coords[i + 1,], 
                                       poly = poly_curr, box = bb)
     kernel <- gIntersection(kernel, temp_half_plane)
+    if (is.null(kernel)) {return(NULL)}
   }
+  return(kernel)
 }
-
-
-
-
-
