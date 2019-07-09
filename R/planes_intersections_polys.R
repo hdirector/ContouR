@@ -12,11 +12,16 @@ make_poly <- function(coords, name) {
 #' Function to make a \code{SpatialLines} object
 #' @param coords n x 2 matrix of coordinates with first column giving 
 #' x-coordinates and second column giving y-coordinates
-#' @param p1 vector of coordinates of first point
-#' @param p2 vector of coordinates of second point
+#' @param p1 matrix of coordinates of points or vector of coordinates of first 
+#' point
+#' @param p2 vector of coordinates of second point; defaults to \code{NULL}
 #' @importFrom sp  SpatialLines
-make_line <- function(p1, p2, name) {
-  SpatialLines(list(Lines(Line(rbind(p1, p2)), name)))
+make_line <- function(p1, p2 = NULL, name) {
+  if (!is.null(p2)) {
+    SpatialLines(list(Lines(Line(rbind(p1, p2)), name)))
+  } else {
+    SpatialLines(list(Lines(Line(p1), name)))
+  }
 }
 
 
@@ -155,7 +160,7 @@ int_half_plane <- function(p1, p2, poly, box) {
   }
 }
 
-#' Function to find the kernel of a star-shaped polygon
+#' Find the kernel of a star-shaped polygon
 #' @coords matrix of dimension n x 2 that gives the coordinates of the 
 #' star-shaped polygon with the first column giving x-coordinates and the second
 #' column giving y-coordinates
@@ -177,3 +182,77 @@ find_kernel <- function(coords) {
   }
   return(kernel)
 }
+
+#' Find the shared kernel among a group of star-shaped polygons
+#' @param obs_coords list where each element is a n x 2 matrix giving the 
+#' coordinates of a star-shaped polygon
+#' @return \code{SpatialPolygons} object giving the shared kernel among
+#' the inputted polygons
+shared_kernel <- function(obs_coords) {
+  n_obs <- length(obs_coords)
+  for (i in 1:n_obs) {
+    kernel_i <- find_kernel(obs_coords[[i]])
+    if (i == 1) {
+      kernel <- kernel_i
+    } else {
+      kernel <- gIntersection(kernel, kernel_i)
+    }
+  }
+  return(kernel)
+}
+
+
+#' Make a 
+#' @param center coordinates of center point 
+#' @param n_lines how many fixed lines should be made
+#' @param bounds coordinates of the boundary of the region in an n x 2 matrix, 
+#' typically forming a rectangle
+#' @importFrom rgeos gIntersection
+fixed_lines <- function(center, n_lines,  
+                        bounds = rbind(c(0, 0), c(0, 1), c(1, 1), c(1, 0))) {
+
+  bound_reg <- make_poly(bounds, "bound_reg")
+  #Make a large upper bound for how far the radius should extend
+  r <- max(dist(bounds)) + 10
+  #generate testing lines
+  theta <- seq(0, 2*pi, length = n_lines + 1)
+  theta <- theta[1:n_lines]
+  bd_pts <- cbind(center[1] + r*cos(theta), center[2] + r*sin(theta))
+  lines <- apply(bd_pts, 1, function(w){gIntersection(bound_reg,
+                                                      make_line(p1 = center, 
+                                                                p2 = w, "line"))})
+  return(lines)
+}
+
+#' Find the length on a 
+#' @param obs \code{SpatialPolygons} object giving the observed polygon
+#' @param lines a list of the fixed lines where each line is represented as
+#' a \code{SpatialLines} object
+#' @param center
+length_on_fixed <- function(obs, lines, center) {
+  obs_line <- as(obs, "SpatialLines")
+  inter_pts <- t(sapply(lines, function(x){gIntersection(x, obs_line)@coords}))
+  lengths <- apply(inter_pts, 1, function(x){get_dist(x, center)})
+  return(lengths)  
+}
+
+
+
+#' Find distance between two points
+#' @param p1 coordinates of point 1
+#' @param p2 coordinates of point 2
+get_dist <- function(p1, p2) {
+  sqrt((p1[1] - p2[1])^2 + (p1[2] - p2[2])^2)
+}
+  
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+
