@@ -166,7 +166,7 @@ int_half_plane <- function(p1, p2, poly, box) {
 #' column giving y-coordinates
 find_kernel <- function(coords) {
   n_pts <- nrow(coords)
-  stopifnot(any(coords[1,] != coords[n_pts]))
+ # stopifnot(any(coords[1,] != coords[n_pts]))
   bb <- bbox()
   poly_curr <- make_poly(coords, "poly")
   
@@ -231,8 +231,19 @@ fixed_lines <- function(center, n_lines,
 #' @param center
 length_on_fixed <- function(obs, lines, center) {
   obs_line <- as(obs, "SpatialLines")
-  inter_pts <- t(sapply(lines, function(x){gIntersection(x, obs_line)@coords}))
-  lengths <- apply(inter_pts, 1, function(x){get_dist(x, center)})
+  n_lines <- length(lines)
+  lengths <- rep(NA, n_lines)
+  for (i in 1:n_lines) {
+    temp <- gIntersection(lines[[i]], obs_line)
+    #pull out coordinates
+    if (is(temp)[1] == "SpatialLines") { #unusual case
+      temp <- temp@lines[[1]]@Lines[[1]]@coords
+    } else { #typical case
+      temp <- temp@coords
+    }
+    temp <- temp[which.max(apply(temp, 1, function(x){get_dist(x, center)})),]
+    lengths[i] <- get_dist(temp, center)
+  }
   return(lengths)  
 }
 
