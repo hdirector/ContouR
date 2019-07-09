@@ -128,7 +128,7 @@ List RunMCMC(int n_iter,
   //constants
   int nVecs = y.n_rows;
   int nObs = y.n_cols;
-  int nu = nu0 + nVecs;
+  int nuN = nu0 + nObs;
 
   //storage vectors and matrices
   arma::mat muStore(nVecs, n_iter/w);
@@ -156,7 +156,7 @@ List RunMCMC(int n_iter,
 
    //////////Gibbs for Sigma/////////////
    arma::mat Sn = S0 + sumQFCent(y, mu);
-   arma::mat Sigma = riwish(nu, inv(Sn));
+   arma::mat Sigma = riwish(nuN, inv(Sn));
    if (j%w == 0) {
      sigmaStore.slice(j/w) = Sigma;
    }
