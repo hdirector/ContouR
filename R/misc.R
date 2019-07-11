@@ -1,6 +1,6 @@
 
-conv_to_grid <- function (x, nrows = 100, ncols = 100, xmn = -0.5, xmx = 1.5,
-                          ymn = -0.5, ymx = 1.5) {
+conv_to_grid <- function (x, nrows = 100, ncols = 100, xmn = 0, xmx = 1,
+                          ymn = 0, ymx = 1) {
   rast <- raster(nrows = nrows, ncols = ncols, xmn = xmn, xmx = xmx, 
                  ymn = ymn, ymx = ymx)
   rast <- rasterize(x, rast, fun = max, background = 0)
@@ -16,12 +16,22 @@ conv_to_grid <- function (x, nrows = 100, ncols = 100, xmn = -0.5, xmx = 1.5,
 #' @param ymn minimum y value
 #' @param ymx maximum y value
 #' @return \code{SpatialPolygons} object corresponding to the region of interest
-conv_to_poly <- function(dat, xmn = -0.5, xmx = 1.5, ymn = -0.5, ymx = 1.5) { 
-    dat <- t(dat[, ncol(dat):1]) #different orientations between matrices and polygons
-    poly <- raster(dat, xmn = xmn, xmx = xmx, ymn = ymn, ymx = ymx)
-    poly <- rasterToPolygons(poly, fun = function(x) {x > 0})
-    poly <- aggregate(poly)
-    return(poly)
+conv_to_poly <- function(dat, xmn = 0, xmx = 1, ymn = 0, ymx = 1) { 
+
+  #Adjust sequencing to be for mid-points, not end-points
+  nrows <- nrow(dat); ncols <- ncol(dat)
+  x_len <- xmx - xmn; y_len <- ymx - ymn
+  xmn <- xmn - (x_len/nrows)/2 
+  xmx <- xmx + (x_len/nrows)/2
+  ymn <- ymn - (y_len/nrows)/2 
+  ymx <- ymx + (y_len/nrows)/2 
+  
+  #make polygon
+  dat <- t(dat[, ncol(dat):1]) #different orientations between matrices and polygons
+  poly <- raster(dat, xmn = xmn, xmx = xmx, ymn = ymn, ymx = ymx)
+  poly <- rasterToPolygons(poly, fun = function(x) {x > 0})
+  poly <- aggregate(poly)
+  return(poly)
 }
 
 
