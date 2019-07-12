@@ -1,4 +1,5 @@
 rm(list = ls())
+set.seed(103)
 library("sp")
 library("MASS")
 library("viridis")
@@ -10,123 +11,131 @@ source('R/misc.R')
 source('R/credible_intervals.R')
 source('R/planes_intersections_polys.R')
 
-
-#true circular contour
+#make up the true mean polygon and covariance
 p_true <- 20
-center_true <- c(0.5, 0.5)
+cent_init <- c(0.5, 0.5)
 theta <- seq(0, 2*pi, length = p_true + 1)
 theta <- theta[1:p_true]
-mu <- c(seq(.1, .2, length = p_true/2), seq(.2, .1, length = p_true/2))
-x1 <- center_true[1] + mu*cos(theta)
-x2 <- center_true[2] + mu*sin(theta)
-plot(x1, x2, type= "l")
-true_mean <- make_line(rbind(cbind(x1, x2), c(x1[1], x2[1])), name = "truth")
+mu_init <- c(seq(.3, .5, length = p_true/4), seq(.36, .3, length = 3*p_true/4))
+x1 <- cent_init[1] + mu_init*cos(theta)
+x2 <- cent_init[2] + mu_init*sin(theta)
+true_pts <- rbind(cbind(x1, x2), c(x1[1], x2[1]))
+true_mean_poly <- make_line(true_pts, name = "truth")
+cent_true <- gCentroid(find_kernel(cbind(x1, x2)))@coords
+lines_true <-  fixed_lines(center = cent_true, n_lines = p_true)
+mu_true <- length_on_fixed(true_mean_poly, lines_true, center = cent_true)
 Sigma_sqExp <- .001*exp(-dist_mat_circle(p_true)) #true covariance
-grid_seq <- seq(0, 1, length = 100)
-grid_truth <- cbind(sapply(x1, function(x){which.min(abs(x - grid_seq))}),
-                    sapply(x2, function(x){which.min(abs(x - grid_seq))}))
-
 
 #priors
-Sigma_indep <- .002*diag(p_true)
-mu0 <-  rep(.15, p_true)
-Lambda0 <- .001*diag(p_true) #independent prior on mu
-nu0_diffuse <- p_true + 2 #p + 2 #diffuse prior for Sigma
-nu0_strong <- 100 #strong prior for Sigma
-Sigma_prior_indep <- Sigma_indep
-Sigma_prior_sqExp <- Sigma_sqExp
-S0_diffuse_indep <- (nu0_diffuse - p_true - 1)*Sigma_prior_indep
-S0_diffuse_sqExp <- (nu0_diffuse - p_true - 1)*Sigma_prior_sqExp
+cent_mu0 <- c(.5, .5)
+cent_sd0 <- c(.25, .25)
+mu0 <-  rep(.35, p_true)
+Lambda0 <- .13*diag(p_true) #independent prior on mu
+nu0 <- 50 #p_true + 2 #p + 2: most diffuse prior for Sigma
+Sigma_prior_sqExp <- .001*exp(-dist_mat_circle(p_true))
+S0_sqExp <- (nu0 - p_true - 1)*Sigma_prior_sqExp
 
 #Run simulation
 n_iter <- 5000
-n_obs <- 22
+n_obs <- 25
 n_gen <- 100
-n_sim <- 10
-n_eval_pts <- 100
-p_est <- p_true
-cover <- matrix(nrow = n_eval_pts, ncol = 3, data = 0)
+n_sim <- 15
+n_eval_pts <- 20
 cred_ints <- c(80, 90, 95)
+cover <- matrix(nrow = n_eval_pts, ncol = length(cred_ints), data = 0)
 colnames(cover) <- cred_ints
 
 # TO DO: translate all coords into a 1x1 square
- 
+
 for (k in 1:n_sim) {  
   #generate observations
-  y_obs_true <- matrix(nrow = p_true, ncol = n_obs)
-  for (i in 1:n_obs) {
-    y_obs_true[,i] <-  mvrnorm(1, mu, Sigma_sqExp)
-  }
+  y_obs_true <-  mvrnorm(n_obs, mu_true, Sigma_sqExp)
+  y_obs_true[y_obs_true < 0] <- 0 #no negative lengths
   
   #view observations and truth
   obs_coords <- obs_poly <- list()
-  #plot(x1, x2, type = "l", xlim = c(-6, 6), ylim = c(-5, 5))
+  plot(x1, x2, type = "l")
   for (i in 1:n_obs) {
-    x1_temp <- center_true[1] + y_obs_true[,i]*cos(theta)
-    x2_temp <- center_true[2] + y_obs_true[,i]*sin(theta)
+    x1_temp <- cent_true[1] + y_obs_true[i,]*cos(theta)
+    x2_temp <- cent_true[2] + y_obs_true[i,]*sin(theta)
     pts_temp <-  rbind(cbind(x1_temp, x2_temp), c(x1_temp[1], x2_temp[1]))
     obs_coords[[i]] <- pts_temp
     obs_poly[[i]] <- make_poly(pts_temp, sprintf("obs_%i", i))
-    #points(obs_coords[[i]], col= 'green', type = "l")
+    points(obs_coords[[i]], col= 'green', type = "l")
   }
   
   #Find kernel and compute y_obs_est
-  kern_est <- shared_kernel(obs_coords)
-  center_est <- gCentroid(kern_est)@coords
-  lines <- fixed_lines(center = center_est, n_lines = p_est)
-  y_obs_est <- sapply(obs_poly, function(x){length_on_fixed(x, lines, 
-                                                            center = center_est)})
-
+  cent_samps <- matrix(nrow = n_obs, ncol = 2)
+  for (i in 1:n_obs) {
+    kern_i <- find_kernel(obs_coords[[i]])
+    cent_samps[i,] <- gCentroid(kern_i)@coords
+  }
+  cent_mu <- apply(cent_samps, 2, mean)
+  cent_sd <- apply(cent_samps, 2, sd)
+  
+  #TO DO: PROPERLY UPDATE THESE VALUES IN A BAYESIAN WAY
+  y_obs_est <- matrix(nrow = p_true, ncol = n_obs)
+  for (i in 1:n_obs) {
+    lines_est <- fixed_lines(center = cent_samps[i,], n_lines = p_true)
+    y_obs_est[,i] <- length_on_fixed(obs_poly[[i]], lines_est, center = cent_samps[i,])
+  }
+  
   #Run MCMC
-  Sigma_ini <- cov(t(y_obs_est))
-  MCMC_samps <- RunMCMC(n_iter = n_iter, y = y_obs_est, mu0 = mu0, lambda0 = Lambda0, 
-                        S0 = S0_diffuse_sqExp, nu0 = nu0_diffuse, 
+  Sigma_ini <- cov(t(y_obs_est)) 
+  mu_ini <- apply(y_obs_est, 1, mean) #remove
+  MCMC_samps <- RunMCMC(n_iter = n_iter, y = y_obs_est, mu0 = mu0, lambda0 = Lambda0,
+                        S0 = S0_sqExp, nu0 = nu0,
                         Sigma_ini = Sigma_ini, w = 1)
   mu_est <- apply(MCMC_samps$mu, 1, mean)
   Sigma_est <- apply(MCMC_samps$Sigma, 1:2, mean)
   
   #generate contours
-  l_est <- mvrnorm(n_gen, mu_est, Sigma_est)
-  x_gen <- center_est[1] + apply(l_est, 1, function(x){x*cos(theta)})
-  y_gen <- center_est[2] + apply(l_est, 1, function(x){x*sin(theta)})
   xy_gen <- list()
- # plot(true_mean)
+  plot(true_mean_poly, xlim = c(0, 1), ylim = c(0, 1))
   for (i in 1:n_gen) {
-    xy_gen[[i]] <- SpatialPolygons(list(Polygons(list(Polygon(cbind(x_gen[,i], y_gen[,i]))), 
-                                              sprintf("gen_%i", i))))
-   # points(cbind(x_gen[,i], y_gen[,i]), type= "l", col = 'blue')
+    rand_ind <- sample(c(1:n_iter), 1)
+    l_est <- mvrnorm(1, MCMC_samps$mu[,rand_ind], MCMC_samps$Sigma[,,rand_ind])
+    stopifnot(!any(l_est < 0))
+    l_est[l_est < 0] <- 0
+    cent_samp <- c(rnorm(1, cent_mu[1], cent_sd[1]),
+                   rnorm(1, cent_mu[1], cent_sd[2]))
+    x_gen <- cent_samp[1] + l_est*cos(theta)
+    y_gen <- cent_samp[2] + l_est*sin(theta)
+    xy_gen[[i]] <- SpatialPolygons(list(Polygons(list(Polygon(cbind(x_gen, y_gen))),
+                                                 sprintf("gen_%i", i))))
+    points(cbind(x_gen, y_gen), type= "l")
   }
-  #plot(true_mean, add = T)
+  plot(true_mean_poly, add = T, col = 'blue')
   
   #convert contours to grid and calculate probs
-  xy_gen_arr <- array(dim = c(n_gen, 100, 100))
-  for (i in 1:n_gen) {
+  xy_gen_arr <- array(dim = c(n_obs, 100, 100))
+  for (i in 1:n_obs) {
     xy_gen_arr[i,,] <- conv_to_grid(xy_gen[[i]])
   }
   prob <- apply(xy_gen_arr, 2:3, mean)
- # image.plot(seq(-0.5, 1.5, length = 100), seq(-0.5, 1.5, length = 100), prob)
- # plot(true_mean, add = T)
+  image.plot(seq(0, 1, length = 100), seq(0, 1, length = 100), prob)
+  plot(true_mean_poly, add = T)
   
   #make a test value
-  y_test <-  mvrnorm(1, mu, Sigma_sqExp)
-  x1_temp <- center_true[1] + y_test*cos(theta)
-  x2_temp <- center_true[2] + y_test*sin(theta)
+  y_test <-  mvrnorm(1, mu_true, Sigma_sqExp)
+  x1_temp <- cent_true[1] + y_test*cos(theta)
+  x2_temp <- cent_true[2] + y_test*sin(theta)
   pts_temp <- rbind(cbind(x1_temp, x2_temp), c(x1_temp[1], x2_temp[1]))
   test_truth <- make_line(p1 = pts_temp, name = "test_truth")
   
   #compute coverage for 80%, 90%, and 95% intervals
-  for (j in 1:3) { 
+  for (j in 1:length(cred_ints)) { 
     alpha <- (1 - cred_ints[j]/100)/2
     in_int <- matrix(nrow = 100, ncol = 100, data = 0)
-    in_int[(prob > alpha) & (prob < (1 - alpha))] <- 1
+    in_int[(prob >= alpha) & (prob <= (1 - alpha))] <- 1
     cred_reg <- conv_to_poly(in_int)
-
-    cover[,j] <- cover[,j] + eval_cred_reg(truth = test_truth, cred_reg, center_true,
+    cover[,j] <- cover[,j] + eval_cred_reg(truth = test_truth, cred_reg, cent_true,
                                            p = n_eval_pts, r = 5)
   }
   print(k)
 }
-cover <- cover/n_sim
+cover_av <- cover/n_sim
+apply(cover_av,2, mean)
 
 
 #plot a demo case

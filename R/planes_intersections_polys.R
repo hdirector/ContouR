@@ -210,17 +210,14 @@ shared_kernel <- function(obs_coords) {
 #' @importFrom rgeos gIntersection
 fixed_lines <- function(center, n_lines,  
                         bounds = rbind(c(0, 0), c(0, 1), c(1, 1), c(1, 0))) {
-
-  bound_reg <- make_poly(bounds, "bound_reg")
   #Make a large upper bound for how far the radius should extend
-  r <- max(dist(bounds)) + 10
+  r <- max(dist(bounds)) + 2
   #generate testing lines
   theta <- seq(0, 2*pi, length = n_lines + 1)
   theta <- theta[1:n_lines]
   bd_pts <- cbind(center[1] + r*cos(theta), center[2] + r*sin(theta))
-  lines <- apply(bd_pts, 1, function(w){gIntersection(bound_reg,
-                                                      make_line(p1 = center, 
-                                                                p2 = w, "line"))})
+  lines <- apply(bd_pts, 1, function(w){make_line(p1 = center, 
+                                                   p2 = w, "line")})
   return(lines)
 }
 

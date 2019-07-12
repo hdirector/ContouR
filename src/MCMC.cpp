@@ -139,8 +139,6 @@ List RunMCMC(int n_iter,
   arma::mat SigmaInv = inv(Sigma);
   arma::mat lambda0Inv = inv(lambda0);
   
-  arma::vec mu = mu0; //testing
-
   // // /////////main loop/////////////
   for (unsigned j = 0; j < n_iter; j++) {
 
@@ -168,3 +166,69 @@ List RunMCMC(int n_iter,
   return(res);
 }
 
+
+// 
+// 
+// //' Run MCMC to Fit Contour Model
+// //' @param n_iter   number of iterations to run the MCMC
+// //' @param u a matrix of observed lengths of dimension number
+// //'          of vectors by number of observed contours
+// //' @param mu vector of the same length as the number of lines which specifies
+// //'           the values from which each element of \code{mu} will be initialized
+// //'           in the MCMC.
+// //' @param mu0 vector of the same length as the number of lines which specifies
+// //'            the prior mean for \code{mu}.
+// //' @param lambda0 matrix of the same dimension as the number of lines which
+// //'                specifices the prior covariance matrix for \code{mu}.
+// //' @param S0 matrix BLAH
+// //'
+// //' @param w Integer specifying how many samples of the parameters will be
+// //'           maintained. Samples from every wth iteration is stored.
+// //'
+// //' @return List of length X that gives BLAH
+// // [[Rcpp::export]]
+// List mcmc_power_exp(int n_iter, arma::mat y, arma::vec mu0,  arma::mat lambda0,
+//              arma::mat S0, int nu0, arma::mat Sigma_ini, int w) {
+//   //constants
+//   int nVecs = y.n_rows;
+//   int nObs = y.n_cols;
+//   int nuN = nu0 + nObs;
+//   
+//   //storage vectors and matrices
+//   arma::mat muStore(nVecs, n_iter/w);
+//   arma::cube sigmaStore(nVecs, nVecs, n_iter/w);
+//   
+//   //inverses
+//   arma::mat Sigma = Sigma_ini;
+//   arma::mat SigmaInv = inv(Sigma);
+//   arma::mat lambda0Inv = inv(lambda0);
+//   
+//   // // /////////main loop/////////////
+//   for (unsigned j = 0; j < n_iter; j++) {
+//     
+//     ////////Gibbs for mu/////////////
+//     arma::vec yMean = RowMean(y);
+//     arma::mat lambdaN = inv(lambda0Inv + nObs*SigmaInv);
+//     arma::vec muN = (inv(lambda0Inv + nObs*SigmaInv)*
+//       (lambda0Inv*mu0 + nObs*SigmaInv*yMean));
+//     arma::mat mu = mvrnormCpp(muN, lambdaN);
+//     if (j%w == 0) {
+//       muStore.col(j/w) = mu;
+//     }
+//     
+//     //////////Gibbs for Sigma/////////////
+//     arma::mat Sn = S0 + sumQFCent(y, mu);
+//     arma::mat Sigma = riwish(nuN, inv(Sn));
+//     if (j%w == 0) {
+//       sigmaStore.slice(j/w) = Sigma;
+//     }
+//   }
+//   
+//   //return values
+//   List res;
+//   res["mu"] = muStore; res["Sigma"] = sigmaStore;
+//   return(res);
+// }
+// 
+// 
+// 
