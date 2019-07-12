@@ -10,6 +10,7 @@ Rcpp::sourceCpp('src/MCMC.cpp')
 source('R/misc.R')
 source('R/credible_intervals.R')
 source('R/planes_intersections_polys.R')
+source('R/posterior_dist.R')
 
 #make up the true mean polygon and covariance
 p_true <- 20
@@ -26,20 +27,25 @@ lines_true <-  fixed_lines(center = cent_true, n_lines = p_true)
 mu_true <- length_on_fixed(true_mean_poly, lines_true, center = cent_true)
 Sigma_sqExp <- .001*exp(-dist_mat_circle(p_true)) #true covariance
 
-#priors
-cent_mu0 <- c(.5, .5)
-cent_sd0 <- c(.25, .25)
-mu0 <-  rep(.35, p_true)
+#y priors
+mu0_y <-  rep(.35, p_true)
 Lambda0 <- .13*diag(p_true) #independent prior on mu
-nu0 <- 50 #p_true + 2 #p + 2: most diffuse prior for Sigma
+nu0_y <- p_true + 2 #p + 2 is most diffuse prior for Sigma
 Sigma_prior_sqExp <- .001*exp(-dist_mat_circle(p_true))
-S0_sqExp <- (nu0 - p_true - 1)*Sigma_prior_sqExp
+S0_sqExp <- (nu0_y - p_true - 1)*Sigma_prior_sqExp
+
+#center prior
+nu0_cent <- c(1, 1) #"prior sample size" of 1
+sigma20 <- c(0004, .0004) 
+mu0_cent <- c(.5, .5) #center of square
+kappa0 <- c(1, 1)
+
 
 #Run simulation
 n_iter <- 5000
-n_obs <- 25
+n_obs <- 50
 n_gen <- 100
-n_sim <- 15
+n_sim <- 10
 n_eval_pts <- 20
 cred_ints <- c(80, 90, 95)
 cover <- matrix(nrow = n_eval_pts, ncol = length(cred_ints), data = 0)
@@ -54,58 +60,70 @@ for (k in 1:n_sim) {
   
   #view observations and truth
   obs_coords <- obs_poly <- list()
-  plot(x1, x2, type = "l")
+  #plot(x1, x2, type = "l")
   for (i in 1:n_obs) {
     x1_temp <- cent_true[1] + y_obs_true[i,]*cos(theta)
     x2_temp <- cent_true[2] + y_obs_true[i,]*sin(theta)
     pts_temp <-  rbind(cbind(x1_temp, x2_temp), c(x1_temp[1], x2_temp[1]))
     obs_coords[[i]] <- pts_temp
     obs_poly[[i]] <- make_poly(pts_temp, sprintf("obs_%i", i))
-    points(obs_coords[[i]], col= 'green', type = "l")
+    #points(obs_coords[[i]], col= 'green', type = "l")
   }
   
   #Find kernel and compute y_obs_est
-  cent_samps <- matrix(nrow = n_obs, ncol = 2)
+  cents <- matrix(nrow = n_obs, ncol = 2)
   for (i in 1:n_obs) {
     kern_i <- find_kernel(obs_coords[[i]])
-    cent_samps[i,] <- gCentroid(kern_i)@coords
+    cents[i,] <- gCentroid(kern_i)@coords
   }
-  cent_mu <- apply(cent_samps, 2, mean)
-  cent_sd <- apply(cent_samps, 2, sd)
   
-  #TO DO: PROPERLY UPDATE THESE VALUES IN A BAYESIAN WAY
+  #Fit cent distributions
+  pars_dist_cent_x <- pars_normal_post(y = cents[,1], nu0_cent[1], sigma20[1],
+                                       mu0_cent[1],  kappa0[1])
+  pars_dist_cent_y <- pars_normal_post(y = cents[,2], nu0_cent[2], sigma20[2], 
+                                       mu0_cent[2], kappa0[2])
+  
   y_obs_est <- matrix(nrow = p_true, ncol = n_obs)
   for (i in 1:n_obs) {
-    lines_est <- fixed_lines(center = cent_samps[i,], n_lines = p_true)
-    y_obs_est[,i] <- length_on_fixed(obs_poly[[i]], lines_est, center = cent_samps[i,])
+    lines_est <- fixed_lines(center = cents[i,], n_lines = p_true)
+    y_obs_est[,i] <- length_on_fixed(obs_poly[[i]], lines_est, 
+                                     center = cents[i,])
   }
   
-  #Run MCMC
+  #Run MCMC mu, Sigma
   Sigma_ini <- cov(t(y_obs_est)) 
   mu_ini <- apply(y_obs_est, 1, mean) #remove
-  MCMC_samps <- RunMCMC(n_iter = n_iter, y = y_obs_est, mu0 = mu0, lambda0 = Lambda0,
-                        S0 = S0_sqExp, nu0 = nu0,
+  MCMC_samps <- RunMCMC(n_iter = n_iter, y = y_obs_est, mu0 = mu0_y, 
+                        lambda0 = Lambda0,S0 = S0_sqExp, nu0 = nu0_y, 
                         Sigma_ini = Sigma_ini, w = 1)
   mu_est <- apply(MCMC_samps$mu, 1, mean)
   Sigma_est <- apply(MCMC_samps$Sigma, 1:2, mean)
   
   #generate contours
   xy_gen <- list()
-  plot(true_mean_poly, xlim = c(0, 1), ylim = c(0, 1))
+  #lot(true_mean_poly, xlim = c(0, 1), ylim = c(0, 1))
   for (i in 1:n_gen) {
+    
+    #sample y_lengths
     rand_ind <- sample(c(1:n_iter), 1)
     l_est <- mvrnorm(1, MCMC_samps$mu[,rand_ind], MCMC_samps$Sigma[,,rand_ind])
     stopifnot(!any(l_est < 0))
     l_est[l_est < 0] <- 0
-    cent_samp <- c(rnorm(1, cent_mu[1], cent_sd[1]),
-                   rnorm(1, cent_mu[1], cent_sd[2]))
+    
+    #sample center points
+    x_pars_samp <- samp_norm_post(1, pars_dist_cent_x)
+    y_pars_samp <- samp_norm_post(1, pars_dist_cent_y)
+    cent_samp <- c(rnorm(1, x_pars_samp$theta, x_pars_samp$sigma),
+                   rnorm(1, y_pars_samp$theta, y_pars_samp$sigma))
+
+    #make polygons
     x_gen <- cent_samp[1] + l_est*cos(theta)
     y_gen <- cent_samp[2] + l_est*sin(theta)
     xy_gen[[i]] <- SpatialPolygons(list(Polygons(list(Polygon(cbind(x_gen, y_gen))),
                                                  sprintf("gen_%i", i))))
-    points(cbind(x_gen, y_gen), type= "l")
+   # points(cbind(x_gen, y_gen), type= "l")
   }
-  plot(true_mean_poly, add = T, col = 'blue')
+  #plot(true_mean_poly, add = T, col = 'blue')
   
   #convert contours to grid and calculate probs
   xy_gen_arr <- array(dim = c(n_obs, 100, 100))
@@ -113,8 +131,8 @@ for (k in 1:n_sim) {
     xy_gen_arr[i,,] <- conv_to_grid(xy_gen[[i]])
   }
   prob <- apply(xy_gen_arr, 2:3, mean)
-  image.plot(seq(0, 1, length = 100), seq(0, 1, length = 100), prob)
-  plot(true_mean_poly, add = T)
+  #image.plot(seq(0, 1, length = 100), seq(0, 1, length = 100), prob)
+  #plot(true_mean_poly, add = T)
   
   #make a test value
   y_test <-  mvrnorm(1, mu_true, Sigma_sqExp)
