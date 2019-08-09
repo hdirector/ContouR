@@ -147,10 +147,8 @@ bool ptInPoly(arma::mat poly, arma::vec pt) {
     } else if (ea(0) == eb(0)) { 
       Rcout << "vertical edge case:" << i << std::endl;
       if (ea(0) > pt(0)) { //line must be to the right
-        Rcout << "line to right:" << 22 << std::endl;
         if ((pt(1) >= std::min(ea(1), eb(1))) &&
             (pt(1) <= std::max(ea(1), eb(1)))) {//test point y must be between edge end points y's
-          Rcout << "in count:" << 22 << std::endl;
           count += 1;
         }
       } else if (ea(0) == pt(0)) {
@@ -167,8 +165,13 @@ bool ptInPoly(arma::mat poly, arma::vec pt) {
       //ray. Then check if that x-value is on or to the right of the point
       double m = (eb(1) - ea(1))/(eb(0) - ea(0));
       double b = eb(1) - m*eb(0);
-      double xInter = (pt(1) - b);
-      if (xInter >= pt(0)) {
+      double xInter = (pt(1) - b)/m;
+      Rcout << "pt(0)" << pt(0) << std::endl;
+      Rcout << "xInter" << xInter << std::endl;
+      
+      if ((xInter >= pt(0)) && (xInter >= std::min(ea(0), eb(0))) 
+            && (xInter <= std::max(ea(0), eb(0)))) { 
+        //x intersection needs to be on edge line segment and to the right of test pt
         count += 1;
       }
     }
