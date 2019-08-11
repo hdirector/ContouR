@@ -136,7 +136,6 @@ bool ptInPoly(arma::mat poly, arma::vec pt) {
     arma::vec eb = poly.col(i + 1);
     //horizontal edge
     if (ea(1) == eb(1)) {  
-      Rcout << "horizontal edge case:" << i << std::endl;
       if (ea(1) == pt(1)) { //test point and edge must be at same height for point to be in
         if (pt(0) >= std::min(ea(0), eb(0)) & pt(0) <= std::max(ea(0), eb(0))) {
           return(TRUE);
@@ -145,7 +144,6 @@ bool ptInPoly(arma::mat poly, arma::vec pt) {
     
     //vertical edge  
     } else if (ea(0) == eb(0)) { 
-      Rcout << "vertical edge case:" << i << std::endl;
       if (ea(0) > pt(0)) { //line must be to the right
         if ((pt(1) >= std::min(ea(1), eb(1))) &&
             (pt(1) <= std::max(ea(1), eb(1)))) {//test point y must be between edge end points y's
@@ -160,16 +158,14 @@ bool ptInPoly(arma::mat poly, arma::vec pt) {
       
     //typical edge  
     } else {  
-      Rcout << "typical edge case:" << i << std::endl;
       //find x-value at which the edge intersects the height of the test
       //ray. Then check if that x-value is on or to the right of the point
       double m = (eb(1) - ea(1))/(eb(0) - ea(0));
       double b = eb(1) - m*eb(0);
       double xInter = (pt(1) - b)/m;
-      Rcout << "pt(0)" << pt(0) << std::endl;
-      Rcout << "xInter" << xInter << std::endl;
-      
-      if ((xInter >= pt(0)) && (xInter >= std::min(ea(0), eb(0))) 
+      if (abs(xInter - pt(0)) <= 1e-10) { //test point is (approximately) on edge
+        return(TRUE);
+      } else if ((xInter > pt(0)) && (xInter >= std::min(ea(0), eb(0))) 
             && (xInter <= std::max(ea(0), eb(0)))) { 
         //x intersection needs to be on edge line segment and to the right of test pt
         count += 1;
@@ -179,24 +175,10 @@ bool ptInPoly(arma::mat poly, arma::vec pt) {
  
   
   if (count % 2 == 0) {
-    Rcout << "count even :" << count << std::endl;
     return(FALSE);
   } else {
-    Rcout << "count odd:" << count << std::endl;
     return(TRUE);
   }
-}
-
-
-
-// [[Rcpp::export]]
-double test(int x) {
-  if ( x % 2 == 0) {
-    Rcout << "The value is even" <<  x<< std::endl;
-  } else {
-    Rcout << "The value is odd" << x << std::endl;
-  }
-  return(0);
 }
 
 
