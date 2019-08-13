@@ -73,7 +73,7 @@ C_ini <- gCentroid(kern)@coords
 Sigma_ini <- cov(y_obs)
 mu_ini <- apply(y_obs, 1, mean) #remove
 SigmaC_ini <- .0001*diag(2)
-test <- RunMCMC(n_iter = n_iter, w = 1, x = obs_coords, C = C_ini,
+test <- RunMCMC(nIter = n_iter, w = 1, x = obs_coords, C = C_ini,
         mu0 = mu0,  lambda0 = Lambda0, S0 = S0_sqExp, nu0 = nu0,
         Sigma = Sigma_ini, mu0C = mu0C, lambda0C = Lambda0C, S0C = S0C, 
         nu0C = nu0C, SigmaC = SigmaC_ini, CxSD = .001, CySD = .001, 
@@ -82,4 +82,8 @@ test$accRateCx
 test$accRateCy
 mu_est <- apply(test$mu, 1, mean)
 Sigma_est <- apply(test$Sigma, 1:2, mean)
-plot(mu_est, mu_true)
+plot(mu_est)
+points(mu_true, col = 'blue')
+plot(test$Cx, type= "l")
+plot(test$Cy, type= "l")
+

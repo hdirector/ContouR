@@ -199,7 +199,7 @@ bool ptInPoly(arma::mat poly, arma::vec pt) {
 
 
 //' Run MCMC to Fit Contour Model
-//' @param n_iter   number of iterations to run the MCMC
+//' @param nIter   number of iterations to run the MCMC
 //' @param u a matrix of observed lengths of dimension number
 //'          of vectors by number of observed contours
 //' @param mu vector of the same length as the number of lines which specifies
@@ -216,7 +216,7 @@ bool ptInPoly(arma::mat poly, arma::vec pt) {
 //'
 //' @return List of length X that gives BLAH
 // [[Rcpp::export]]
-List RunMCMC(int n_iter, int w, arma::cube x, arma::vec C,
+List RunMCMC(int nIter, int w, arma::cube x, arma::vec C,
              arma::vec mu0,  arma::mat lambda0, arma::mat S0, int nu0,
              arma::mat Sigma,
              arma::vec mu0C,  arma::mat lambda0C, arma::mat S0C, int nu0C,
@@ -231,8 +231,10 @@ List RunMCMC(int n_iter, int w, arma::cube x, arma::vec C,
   int nuN = nu0 + nObs;
 
   //storage vectors and matrices
-  arma::mat muStore(nVecs, n_iter/w);
-  arma::cube sigmaStore(nVecs, nVecs, n_iter/w);
+  arma::mat muStore(nVecs, nIter/w);
+  arma::cube sigmaStore(nVecs, nVecs, nIter/w);
+  arma::vec CxStore(nIter/w);
+  arma::vec CyStore(nIter/w);
 
   //Cx and Cy acceptance rates
   double accRateCx = 0;
@@ -252,7 +254,7 @@ List RunMCMC(int n_iter, int w, arma::cube x, arma::vec C,
   
   //Rcout << "prelim done " << 0 << std::endl;
   // // /////////main loop/////////////
-  for (unsigned j = 0; j < n_iter; j++) {
+  for (unsigned j = 0; j < nIter; j++) {
 
     ////////Gibbs for mu/////////////
     arma::vec yMean = RowMean(y);
@@ -274,8 +276,8 @@ List RunMCMC(int n_iter, int w, arma::cube x, arma::vec C,
   //Rcout << "gibbs for sigma done" << j << std::endl;
    
   ////////////Metropolis for Cx///////
-  arma::vec Cx = arma::randn(1)*CxSD + C(0);
-  CProp(0) = Cx(0);
+  arma::vec CxProp = arma::randn(1)*CxSD + C(0);
+  CProp(0) = CxProp(0);
   if (ptInPoly(kernHat, CProp)) {
     //Rcout << "Cx after ptInpoly" << j << std::endl;
     arma::mat yxProp = xToY(x, CProp);
@@ -291,22 +293,24 @@ List RunMCMC(int n_iter, int w, arma::cube x, arma::vec C,
     if (acceptCx) {
       //Rcout << "in accept Cx" << j << std::endl;
       C = CProp;
+      CxStore(j) = CxProp(0);
       accRateCx++;
       y = yxProp;
     } else {
      //Rcout << "in reject Cx" << j << std::endl;
       CProp = C;
+      CxStore(j) = CxStore(j-1);
     }
   } else {
     //Rcout << "rejected bc ptInPoly Cx" << j << std::endl;
     CProp = C;
+    CxStore(j) = CxStore(j-1);
   }
 
   ////////////Metropolis for Cy///////
-  arma::vec Cy = arma::randn(1)*CySD + C(1);
-
-  CProp(1) = Cy(0);
-    if (ptInPoly(kernHat, CProp)) {
+  arma::vec CyProp = arma::randn(1)*CySD + C(1);
+  CProp(1) = CyProp(0);
+  if (ptInPoly(kernHat, CProp)) {
     arma::mat yyProp = xToY(x, CProp);
     bool acceptCy = false;
     double logRCy = (- 0.5*sumQFCentSq(yyProp, mu, inv(Sigma))
@@ -317,19 +321,20 @@ List RunMCMC(int n_iter, int w, arma::cube x, arma::vec C,
     //Rcout << "acceptCy" << acceptCy << std::endl;
     
     if (acceptCy) {
-      //Rcout << "in accept Cy" << j << std::endl;
+      //Rcout << "in accept Cx" << j << std::endl;
       C = CProp;
+      CyStore(j) = CyProp(0);
       accRateCy++;
-      //Rcout << "accRateCy" << accRateCy << std::endl;
-      
       y = yyProp;
     } else {
       //Rcout << "in reject Cy" << j << std::endl;
       CProp = C;
+      CyStore(j) = CyStore(j-1);
     }
   } else {
     //Rcout << "rejected bc ptInPoly" << j << std::endl;
     CProp = C;
+    CyStore(j) = CyStore(j-1);
   }
   //Rcout << "metropolis for Cy done" << j << std::endl;
   
@@ -344,14 +349,14 @@ List RunMCMC(int n_iter, int w, arma::cube x, arma::vec C,
   }
 
   //finalize acceptance rate
-  accRateCx = accRateCx/n_iter;
-  accRateCy = accRateCy/n_iter;
-  
+  accRateCx = accRateCx/nIter;
+  accRateCy = accRateCy/nIter;
   
   //return values
   List res;
   res["mu"] = muStore; res["Sigma"] = sigmaStore; 
   res["accRateCx"] = accRateCx; res["accRateCy"] = accRateCy;
+  res["Cx"] = CxStore; res["Cy"] = CyStore;
   return(res);
 }
 
