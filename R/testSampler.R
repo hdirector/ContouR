@@ -6,7 +6,7 @@ library("viridis")
 library("raster")
 library("fields")
 library("rgeos")
-Rcpp::sourceCpp('src/MCMCModel3.cpp')
+Rcpp::sourceCpp('src/MCMC.cpp')
 source('R/misc.R')
 source('R/credible_intervals.R')
 source('R/planes_intersections_polys.R')
@@ -77,9 +77,15 @@ range_kern <- ub_kern - lb_kern
 #initial values
 C_ini <- gCentroid(kern)@coords
 sigma_ini <-  sqrt(diag(cov(y_obs))) #rep(.01, 20)
-mu_ini <- apply(y_obs, 2, mean)
 theta1_ini = delta;
 kappa_ini = 3;
+theta_ini <- theta + pi/8
+theta_ini[theta_ini >= 2*pi] <- 2*pi - theta_ini[theta_ini >= 2*pi] 
+theta_ini[theta_ini < 0] <- 2*pi - (3*pi/2)
+
+temp <- XToWY(obs_coords, C_ini[1], C_ini[2], theta_ini)
+mu_ini <- rep(.1, 20) #apply(temp$y, 1, mean)
+nu_ini <- sd(temp$w)
 
 #priors
 theta10 = delta;
@@ -90,26 +96,27 @@ sigmaX0 = .3 #to do: formal criterion
 sigmaY0 = .3 #to do: formal criterion 
 betaKappa0 = 100
 betaSigma0 = .1
-thetaMu0 = theta
+theta0 <- theta 
 
 #sampling settings
-muPropSigma = .0000001*diag(p_true) #.000001*exp(-dist_mat_circle(p_true))
+muPropSigma = .00000001*diag(p_true) #.000001*exp(-dist_mat_circle(p_true))
 thetaPropSigma = .000001*diag(p_true) #.000001*exp(-dist_mat_circle(p_true))
-CxPropSD = CyPropSD = .005;
-
+CxPropSD = .003
+CyPropSD = .0001
+thetaPropSD = .001
 
 test <- RunMCMC(nIter = n_iter, x = obs_coords, delta = delta,
-                mu = mu_ini, mu0 = mu0, Lambda0 = Lambda0, muPropSigma = muPropSigma,
+                mu = mu_ini, mu0 = mu0, Lambda0 = Lambda0, muPropSD = .001,
                 nu = .5,
                 Cx = C_ini[1], Cx0 = Cx0, sigmaX0 = sigmaX0, CxPropSD = CxPropSD,
                 Cy = C_ini[2], Cy0 = Cy0, sigmaY0 = sigmaY0, CyPropSD = CyPropSD,
                 kappa = kappa_ini, alphaKappa0 = 0, betaKappa0 = 10, kappaPropSD = .5,
                 sigmaY = sigma_ini, betaSigmaY0 = betaSigma0, sigmaYPropSD = .001,
-                theta = theta,
+                theta = theta, thetaPropSD = .1, theta0 = theta0, nu0 = 10,
                 kernHat = kern_pts)
 
 
-mu_est <- apply(test$mu, 1, mean)
+mu_est <- apply(test$mu[,25000:50000], 1, mean)
 plot(mu_est)
 points(mu_true, col = 'blue', pch = 20)
 for (i in 1:20) {
@@ -125,6 +132,8 @@ points(cbind(test$Cx, test$Cy), type = "l")
 
 mean(test$Cx)
 mean(test$Cy)
+test$CxRate
+test$CyRate
 
 plot(test$kappa, type = "l")
 test$kappaRate
@@ -135,7 +144,6 @@ mean(test$kappa)
 for (i in 1:20) {
   plot(test$sigmaY[i,], type= "l", main = i)
 }
-
 apply(test$sigmaYRate, 1, mean)
 sigma_mean <- apply(test$sigmaY,1, mean)
 a <- compSigma(sigma_mean, mean(test$kappa))
@@ -144,6 +152,12 @@ image.plot(Sigma)
 image.plot(a)
 image.plot(cov(y_obs))
 
-plot(sigma_mean)
-points(sigma_ini, col = 'blue')
+for (i in 1:20) {
+  plot(test$theta[i,], type= "l", main = i)
+}
+library("circular")
+theta_est <- apply(test$theta, 1, function(x){mean.circular(as.circular(x, 
+                                       control.circular=list(units="radians", zero=0, 
+                                                             modulo = "2pi")))})
+plot(theta, theta_est)
 
