@@ -14,9 +14,9 @@ source('R/posterior_dist.R')
 
 #make up the true mean polygon and covariance
 p_true <- 20
-delta <- 2*pi/p_true
+theta_space <- 2*pi/p_true
 cent <- c(0.5, 0.5)
-theta <- seq(0, 2*pi, length = p_true + 1)
+theta <- seq(theta_space/2, 2*pi, by = theta_space)
 theta <- theta[1:p_true]
 mu_true <- c(seq(.1, .4, length = p_true/4), seq(.4, .1, length = 3*p_true/4))
 x1 <- cent[1] + mu_true*cos(theta)
@@ -26,7 +26,7 @@ sigma_true <- rep(.01, 20)
 Sigma <- compSigma(sigma_true, 3)
 
 #Simulation set up
-n_iter <- 10000
+n_iter <- 50000
 n_obs <- 50
 n_gen <- 100
 n_sim <- 500
@@ -75,20 +75,15 @@ range_kern <- ub_kern - lb_kern
 
 
 #initial values
+theta_ini <- theta
 C_ini <- gCentroid(kern)@coords
-sigma_ini <-  sqrt(diag(cov(y_obs))) #rep(.01, 20)
-theta1_ini = delta;
 kappa_ini = 3;
-theta_ini <- theta + pi/8
-theta_ini[theta_ini >= 2*pi] <- 2*pi - theta_ini[theta_ini >= 2*pi] 
-theta_ini[theta_ini < 0] <- 2*pi - (3*pi/2)
-
 temp <- XToWY(obs_coords, C_ini[1], C_ini[2], theta_ini)
-mu_ini <- rep(.1, 20) #apply(temp$y, 1, mean)
+mu_ini <- rep(mean(apply(temp$y, 1, mean)), p_true) 
 nu_ini <- sd(temp$w)
+sigma_ini <-  rep(mean(apply(temp$y, 1, sd)), p_true)
 
 #priors
-theta10 = delta;
 nu0 = 10; #to do: formal criterion 
 Cx0 = .5; #to do: formal criterion 
 Cy0 = .5; #to do: formal criterion 
@@ -96,27 +91,26 @@ sigmaX0 = .3 #to do: formal criterion
 sigmaY0 = .3 #to do: formal criterion 
 betaKappa0 = 100
 betaSigma0 = .1
-theta0 <- theta 
+theta0LB <- seq(0, 2*pi, theta_space)
+theta0UB <- seq(theta_space, 2*pi, theta_space)
 
 #sampling settings
-muPropSigma = .00000001*diag(p_true) #.000001*exp(-dist_mat_circle(p_true))
-thetaPropSigma = .000001*diag(p_true) #.000001*exp(-dist_mat_circle(p_true))
 CxPropSD = .003
 CyPropSD = .0001
 thetaPropSD = .001
 
-test <- RunMCMC(nIter = n_iter, x = obs_coords, delta = delta,
+test <- RunMCMC(nIter = n_iter, x = obs_coords, 
                 mu = mu_ini, mu0 = mu0, Lambda0 = Lambda0, muPropSD = .001,
                 nu = .5,
                 Cx = C_ini[1], Cx0 = Cx0, sigmaX0 = sigmaX0, CxPropSD = CxPropSD,
                 Cy = C_ini[2], Cy0 = Cy0, sigmaY0 = sigmaY0, CyPropSD = CyPropSD,
                 kappa = kappa_ini, alphaKappa0 = 0, betaKappa0 = 10, kappaPropSD = .5,
                 sigmaY = sigma_ini, betaSigmaY0 = betaSigma0, sigmaYPropSD = .001,
-                theta = theta, thetaPropSD = .1, theta0 = theta0, nu0 = 10,
+                theta = theta, theta1PropSD = .01,
                 kernHat = kern_pts)
 
-
-mu_est <- apply(test$mu[,25000:50000], 1, mean)
+burn_in <- 25000
+mu_est <- apply(test$mu[,(burn_in + 1):n_iter], 1, mean)
 plot(mu_est)
 points(mu_true, col = 'blue', pch = 20)
 for (i in 1:20) {
@@ -129,15 +123,16 @@ plot(test$Cx, type= "l")
 plot(test$Cy, type= "l")
 plot(kern)
 points(cbind(test$Cx, test$Cy), type = "l")
+points(cent[1], cent[2], col = 'red')
 
-mean(test$Cx)
-mean(test$Cy)
+mean(test$Cx[(burn_in + 1):n_iter])
+mean(test$Cy[(burn_in + 1):n_iter])
 test$CxRate
 test$CyRate
 
 plot(test$kappa, type = "l")
 test$kappaRate
-mean(test$kappa)
+mean(test$kappa[(burn_in + 1):n_iter])
 
 
 
@@ -145,19 +140,14 @@ for (i in 1:20) {
   plot(test$sigmaY[i,], type= "l", main = i)
 }
 apply(test$sigmaYRate, 1, mean)
-sigma_mean <- apply(test$sigmaY,1, mean)
+sigma_mean <- apply(test$sigmaY[,(burn_in + 1):n_iter],1, mean)
 a <- compSigma(sigma_mean, mean(test$kappa))
 par(mfrow = c(1, 3))
 image.plot(Sigma)
 image.plot(a)
 image.plot(cov(y_obs))
 
-for (i in 1:20) {
-  plot(test$theta[i,], type= "l", main = i)
-}
-library("circular")
-theta_est <- apply(test$theta, 1, function(x){mean.circular(as.circular(x, 
-                                       control.circular=list(units="radians", zero=0, 
-                                                             modulo = "2pi")))})
-plot(theta, theta_est)
-
+par(mfrow = c(1,1))
+plot(test$theta1, type = "l")
+test$thetaRate 
+mean(test$theta1[(burn_in + 1):n_iter])
