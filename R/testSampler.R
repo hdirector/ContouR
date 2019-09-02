@@ -1,16 +1,10 @@
 rm(list = ls())
 set.seed(103)
 library("sp")
-library("MASS")
-library("viridis")
-library("raster")
 library("fields")
 library("rgeos")
 Rcpp::sourceCpp('src/MCMC.cpp')
-source('R/misc.R')
-source('R/credible_intervals.R')
 source('R/planes_intersections_polys.R')
-source('R/posterior_dist.R')
 
 #make up the true mean polygon and covariance
 p_true <- 20
@@ -23,7 +17,8 @@ x1 <- cent[1] + mu_true*cos(theta)
 x2 <- cent[2] + mu_true*sin(theta)
 #Sigma_sqExp <- .001*exp(-dist_mat_circle(p_true)) #true covariance
 sigma_true <- rep(.01, 20)
-Sigma <- compSigma(sigma_true, 3)
+theta_dist <- compThetaDist(p_true, 2*pi/p_true)
+Sigma <- compSigma(sigma_true, 3, theta_dist)
 
 #Simulation set up
 n_iter <- 50000
@@ -99,15 +94,18 @@ CxPropSD = .003
 CyPropSD = .0001
 thetaPropSD = .001
 
+start_time <- Sys.time()
 test <- RunMCMC(nIter = n_iter, x = obs_coords, 
                 mu = mu_ini, mu0 = mu0, Lambda0 = Lambda0, muPropSD = .001,
                 nu = .5,
                 Cx = C_ini[1], Cx0 = Cx0, sigmaX0 = sigmaX0, CxPropSD = CxPropSD,
                 Cy = C_ini[2], Cy0 = Cy0, sigmaY0 = sigmaY0, CyPropSD = CyPropSD,
                 kappa = kappa_ini, alphaKappa0 = 0, betaKappa0 = 10, kappaPropSD = .5,
-                sigmaY = sigma_ini, betaSigmaY0 = betaSigma0, sigmaYPropSD = .001,
-                theta = theta, theta1PropSD = .01,
+                sigma = sigma_ini, betaSigma0 = betaSigma0, sigmaPropSD = .001,
+                theta1 = theta[1], theta1PropSD = .01,
                 kernHat = kern_pts)
+end_time <- Sys.time()
+end_time - start_time
 
 burn_in <- 25000
 mu_est <- apply(test$mu[,(burn_in + 1):n_iter], 1, mean)
@@ -137,17 +135,23 @@ mean(test$kappa[(burn_in + 1):n_iter])
 
 
 for (i in 1:20) {
-  plot(test$sigmaY[i,], type= "l", main = i)
+  plot(test$sigma[i,], type= "l", main = i)
 }
-apply(test$sigmaYRate, 1, mean)
-sigma_mean <- apply(test$sigmaY[,(burn_in + 1):n_iter],1, mean)
-a <- compSigma(sigma_mean, mean(test$kappa))
+apply(test$sigmaRate, 1, mean)
+
+
+par(mfrow = c(1,1))
+plot(test$theta1, type = "l")
+test$thetaRate 
+theta1_est <- mean(test$theta1[(burn_in + 1):n_iter])
+theta_est <- seq(theta1_est, 2*pi, by = theta_space)
+plot(theta)
+points(theta_est, col = "blue", pch = 20)
+
+sigma_mean <- apply(test$sigma[,(burn_in + 1):n_iter],1, mean)
+a <- compSigma(sigma_mean, mean(test$kappa), theta_dist)
 par(mfrow = c(1, 3))
 image.plot(Sigma)
 image.plot(a)
 image.plot(cov(y_obs))
 
-par(mfrow = c(1,1))
-plot(test$theta1, type = "l")
-test$thetaRate 
-mean(test$theta1[(burn_in + 1):n_iter])
