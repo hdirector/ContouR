@@ -3,61 +3,8 @@ rm(list = ls())
 set.seed(103)
 library("sp")
 library("fields")
-library("rgeos")
-library("MASS")
-library("raster")
-Rcpp::sourceCpp('src/MCMC.cpp')
-source('R/planes_intersections_polys.R')
-source('R/credible_intervals.R')
-source('R/misc.R')
 
 
-#make up the true mean polygon and covariance
-#To Do, consider different parameters combinations
-p_true <- 20
-theta_space <- 2*pi/p_true
-cent <- c(0.5, 0.5)
-theta <- seq(theta_space/2, 2*pi, by = theta_space)
-theta <- theta[1:p_true]
-mu_true <- c(seq(.1, .4, length = p_true/4), seq(.4, .1, length = 3*p_true/4))
-x1 <- cent[1] + mu_true*cos(theta)
-x2 <- cent[2] + mu_true*sin(theta)
-sigma_true <- rep(.01, p_true)
-theta_dist <- compThetaDist(p_true, 2*pi/p_true)
-Sigma <- compSigma(sigma_true, 3, theta_dist)
-
-#Fixed simulation info 
-n_iter <-  10000
-burn_in <- 5000
-n_gen <- 100
-n_sim <- 100
-n_eval_pts <- 20
-cred_ints <- c(80, 90, 95)
-
-#varied simulation parameters
-n_obs_poss <- c(20, 35, 50)
-
-
-#priors
-mu0 <-  rep(.15, p_true)
-Lambda0 <- .05*diag(p_true) #independent prior on mu
-nu0 = 10; #to do: formal criterion 
-Cx0 = .5; #to do: formal criterion 
-Cy0 = .5; #to do: formal criterion 
-sigmaX0 = .3 #to do: formal criterion 
-sigmaY0 = .3 #to do: formal criterion 
-betaKappa0 = 100
-betaSigma0 = .1
-theta0LB <- seq(0, 2*pi, theta_space)
-theta0UB <- seq(theta_space, 2*pi, theta_space)
-
-#sampling settings
-muPropSD = .001
-CxPropSD = .003
-CyPropSD = .0001
-kappaPropSD = .5
-sigmaPropSD = .001
-theta1PropSD = .01
 
 
 #function to compute probability
@@ -86,17 +33,72 @@ get_cred_regs <- function(prob, cred_ints) {
 }
 
 
-compCoverage <- function(n_obs) {
+compCoverage <- function(pars) {
+  #file read-ins
+  library("MASS")
+  library("rgeos")
+  library("raster")
+  Rcpp::sourceCpp('src/MCMC.cpp')
+  source('R/planes_intersections_polys.R')
+  source('R/credible_intervals.R')
+  source('R/misc.R')
+  
+  #varied settings
+  n_obs <- pars[1]
+  n_sim <- pars[2]
+  
+  #make up the true mean polygon and covariance
+  #To Do, consider different parameters combinations
+  p_true <- 20
+  theta_space <- 2*pi/p_true
+  C_true <- c(0.5, 0.5)
+  theta <- seq(theta_space/2, 2*pi, by = theta_space)
+  theta <- theta[1:p_true]
+  mu_true <- c(seq(.1, .4, length = p_true/4), seq(.4, .1, length = 3*p_true/4))
+  x1 <- C_true[1] + mu_true*cos(theta)
+  x2 <- C_true[2] + mu_true*sin(theta)
+  sigma_true <- rep(.01, p_true)
+  theta_dist <- compThetaDist(p_true, 2*pi/p_true)
+  Sigma <- compSigma(sigma_true, 3, theta_dist)
+  
+  #priors
+  mu0 <-  rep(.15, p_true)
+  Lambda0 <- .05*diag(p_true) #independent prior on mu
+  nu0 = 10; #to do: formal criterion 
+  Cx0 = .5; #to do: formal criterion 
+  Cy0 = .5; #to do: formal criterion 
+  sigmaX0 = .3 #to do: formal criterion 
+  sigmaY0 = .3 #to do: formal criterion 
+  betaKappa0 = 100
+  betaSigma0 = .1
+  theta0LB <- seq(0, 2*pi, theta_space)
+  theta0UB <- seq(theta_space, 2*pi, theta_space)
+  
+  #sampling settings
+  muPropSD = .001
+  CxPropSD = .003
+  CyPropSD = .0001
+  kappaPropSD = .5
+  sigmaPropSD = .001
+  theta1PropSD = .01
+  
+  #Fixed simulation info 
+  n_iter <-  10000
+  burn_in <- 5000
+  n_eval_pts <- 20
+  cred_ints <- c(80, 90, 95)
+  
+  #result matrix
   cover <- matrix(nrow = p_true, ncol = length(cred_ints), data = 0)
-  for (k in 1:n_sim) {  
+  
+  for (k in 1:n_evals) {  
     #generate observations
-    y_obs <-  mvrnorm(n_obs, mu_true, Sigma) #FIX ME, cycle over n_obs
+    y_obs <-  mvrnorm(n_obs, mu_true, Sigma) 
     y_obs[y_obs < 0] <- 0 #no negative lengths
     obs_coords <- array(dim = c(2, p_true, n_obs))
-    plot(x1, x2, type = "l", xlim = c(0, 1), ylim = c(0, 1))
     for (i in 1:n_obs) {
-      obs_curr <- cbind(cent[1] + y_obs[i,]*cos(theta), 
-                        cent[2] + y_obs[i,]*sin(theta))
+      obs_curr <- cbind(C_true[1] + y_obs[i,]*cos(theta), 
+                        C_true[2] + y_obs[i,]*sin(theta))
       obs_coords[,,i] <-  t(obs_curr)
     }
       
@@ -110,7 +112,6 @@ compCoverage <- function(n_obs) {
       }
     }
     kern_pts <- t(kern@polygons[[1]]@Polygons[[1]]@coords)
-    
       
     #initial values
     theta_ini <- theta
@@ -149,17 +150,17 @@ compCoverage <- function(n_obs) {
     #sample from true distribution (focusing on posterior predictive dist)
     y_test <-  mvrnorm(1, mu_true, Sigma)
     y_test[y_test < 0] <- 0
-    x1_test <- cent[1] + y_test*cos(theta)
-    x2_test <- cent[2] + y_test*sin(theta)
+    x1_test <- C_true[1] + y_test*cos(theta)
+    x2_test <- C_true[2] + y_test*sin(theta)
     pts_test <- rbind(cbind(x1_test, x2_test), c(x1_test[1], x2_test[1]))
     test_truth <- make_line(p1 = pts_test, name = "test_truth")
     
     #credible intervals and coverage  
-    prob <- get_prob_sim(n_gen, mu_est, Sigma_est, Cx_est, Cy_est, theta_est)
+    prob <- get_prob_sim(n_sim, mu_est, Sigma_est, Cx_est, Cy_est, theta_est)
     cred_regs <- get_cred_regs(prob, cred_ints)
     for (j in 1:length(cred_ints)) {
       cover[,j] <- cover[,j] + eval_cred_reg(test_truth, cred_regs[[j]],
-                                             cent, p_true, r = 5)
+                                             C_true, p_true, r = 5)
     }
     print(c(k, i))
   }
@@ -167,10 +168,25 @@ compCoverage <- function(n_obs) {
 }
 
 
+#set up varied simulation parameters to test
+n_obs_poss <- c(20, 35, 50)
+n_sim_poss <- c(25, 50, 75)
+par_list <- list()
+par_tab <- expand.grid(n_obs_poss, n_sim_poss)
+for (i in 1:nrow(par_tab)) {
+  par_list[[i]] <- as.numeric(par_tab[i,])
+}
+n_evals <- 2
 
+
+#run cases in parallel
 library("parallel")
 n_cores <- detectCores() - 1
 cl <- makeCluster(n_cores)
-parLapply(n_obs_poss, function(x){compCoverage(x)})
+clusterExport(cl, c("compCoverage", "get_cred_regs", "get_prob_sim", "n_evals"))
+res <- parLapply(cl, par_list, function(x){compCoverage(x)})
+
+#evaluate results
+res_sum <- t(sapply(res, function(x){apply(x, 2, function(y){mean(y/n_evals)})}))
 
 
