@@ -237,7 +237,7 @@ List RunMCMC(int nIter, arma::cube x,
   double theta1UB = theta1(0) + thetaSpace/2;
 
   //Compute sigma matrix
-  arma::mat thetaDist = compThetaDist(n, thetaSpace);
+  arma::mat thetaDist = compThetaDist(p, thetaSpace);
   arma::mat Sigma = compSigma(sigma, kappa, thetaDist);
   arma::mat SigmaInv = inv(Sigma);
 
@@ -247,6 +247,7 @@ List RunMCMC(int nIter, arma::cube x,
   double wSqSum = arma::accu(wSq);
   arma::mat y = temp["y"];
   arma::mat Lambda0Inv = inv(Lambda0);
+
 
   //storage vectors and matrices
   arma::mat muStore = arma::zeros(p, nIter);
@@ -375,7 +376,6 @@ List RunMCMC(int nIter, arma::cube x,
     }
     CyStore(i) = Cy(0);
 
-
     ////////////////update kappa/////////////////
     arma::vec kappaProp =  kappaPropSD*arma::randn(1) + kappa;
     if ((kappaProp(0) >= alphaKappa0) & (kappaProp(0) <= betaKappa0)) {
@@ -410,6 +410,7 @@ List RunMCMC(int nIter, arma::cube x,
       sigmaStore(j, i) = sigma(j);
     }
   }
+  
 
   //update acceptance rates
   muRate = muRate/nIter;
