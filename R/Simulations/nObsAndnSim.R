@@ -170,13 +170,13 @@ compCoverage <- function(pars) {
 
 #set up varied simulation parameters to test
 n_obs_poss <- c(20, 35, 50)
-n_sim_poss <- c(25, 50, 75)
+n_sim_poss <- c(25, 50, 75,100)
 par_list <- list()
 par_tab <- expand.grid(n_obs_poss, n_sim_poss)
 for (i in 1:nrow(par_tab)) {
   par_list[[i]] <- as.numeric(par_tab[i,])
 }
-n_evals <- 2
+n_evals <- 100
 
 
 #run cases in parallel
@@ -188,5 +188,27 @@ res <- parLapply(cl, par_list, function(x){compCoverage(x)})
 
 #evaluate results
 res_sum <- t(sapply(res, function(x){apply(x, 2, function(y){mean(y/n_evals)})}))
+library("tidyverse")
+cred_ints <- c(80, 90, 95)
+res_df <- data.frame("n_obs" = rep(as.factor(par_tab[,1]), 3),
+                      "n_sim" = rep(as.factor(par_tab[,2]), 3),
+                      "nom_cover" = rep(cred_ints, each = nrow(par_tab)),
+                      "cover" = as.vector(res_sum[,1:3]),
+                      "cat" = rep("data", nrow(par_tab)))
 
+
+pdf("/users/hdirector/desktop/obsExper.pdf")
+ggplot(filter(res_df, n_sim == 100),
+       aes(x = nom_cover, y = cover, group = n_obs, col = n_obs)) + 
+  geom_point() + 
+  ggtitle("Coverage Improves With Sample Size") 
+dev.off()
+
+pdf("/users/hdirector/desktop/simExper.pdf")
+ggplot(filter(res_df, n_obs == 50),
+       aes(x = nom_cover, y = cover, group = n_sim, col = n_sim)) +
+  geom_point() +
+  ggtitle("Coverage Improves With More Simulations")
+dev.off()
+  
 
