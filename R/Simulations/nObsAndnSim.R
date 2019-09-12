@@ -4,9 +4,6 @@ set.seed(103)
 library("sp")
 library("fields")
 
-
-
-
 #function to compute probability
 get_prob_sim <- function(n_sim, mu_est, Sigma_est, Cx_est, Cy_est, theta_est) {
   y_sim <-  mvrnorm(n_sim, mu_est, Sigma_est) 
@@ -49,7 +46,7 @@ compCoverage <- function(pars) {
   
   #make up the true mean polygon and covariance
   #To Do, consider different parameters combinations
-  p_true <- 20
+  p_true <- 12
   theta_space <- 2*pi/p_true
   C_true <- c(0.5, 0.5)
   theta <- seq(theta_space/2, 2*pi, by = theta_space)
@@ -85,8 +82,12 @@ compCoverage <- function(pars) {
   #Fixed simulation info 
   n_iter <-  10000
   burn_in <- 5000
+  g_space <- 5
+  g_start <- seq(1, p_true, by = g_space)
+  g_end <- c(seq(g_space, p_true, by = g_space), p_true)
   n_eval_pts <- 20
   cred_ints <- c(80, 90, 95)
+  
   
   #result matrix
   cover <- matrix(nrow = p_true, ncol = length(cred_ints), data = 0)
@@ -130,7 +131,8 @@ compCoverage <- function(pars) {
                     Cy = C_ini[2], Cy0 = Cy0, sigmaY0 = sigmaY0, CyPropSD = CyPropSD,
                     kappa = kappa_ini, alphaKappa0 = 0, betaKappa0 = 10, 
                     kappaPropSD = kappaPropSD,
-                    sigma = sigma_ini, betaSigma0 = betaSigma0, sigmaPropSD = sigmaPropSD,
+                    sigma = sigma_ini, betaSigma0 = betaSigma0, 
+                    sigmaPropCov = sigmaPropCov,
                     theta1 = theta[1], theta1PropSD = theta1PropSD,
                     kernHat = kern_pts)
     
