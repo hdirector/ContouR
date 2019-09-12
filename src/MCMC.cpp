@@ -215,7 +215,7 @@ arma::mat compSigma(arma::vec sigma, arma::vec kappa, arma::mat thetaDist) {
 //[[Rcpp::export]]
 List RunMCMC(int nIter, arma::cube x,
              arma::vec mu, arma::vec mu0, arma::mat Lambda0, arma::mat muPropCov,
-             arma::vec nu, double nuPropSD, double betaNu0,
+             arma::vec nu, double nuPropSD, double alphaNu0, double betaNu0,
              arma::vec Cx, double Cx0, double sigmaX0, arma::vec CxPropSD,
              arma::vec Cy, double Cy0, double sigmaY0, arma::vec CyPropSD,
              arma::vec kappa, double alphaKappa0, double betaKappa0,
@@ -322,7 +322,7 @@ List RunMCMC(int nIter, arma::cube x,
     
     ////////////update nu////////////////
     arma::vec nuProp = nuPropSD*arma::randn(1) + nu(0);
-    if ((nuProp(0) > 0) & (nuProp(0) < betaNu0)) {
+    if ((nuProp(0) > alphaNu0) & (nuProp(0) < betaNu0)) {
       logR = (-n*p*log(nuProp(0))/2 -(1/(2*pow(nuProp(0), 2)))*wSqSum
               +n*p*log(nu(0))/2 + (1/(2*pow(nu(0), 2)))*wSqSum);
       if (logAccept(logR)) {

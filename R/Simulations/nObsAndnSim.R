@@ -54,7 +54,8 @@ compCoverage <- function(pars) {
   mu_true <- c(seq(.1, .4, length = p_true/4), seq(.4, .1, length = 3*p_true/4))
   x1 <- C_true[1] + mu_true*cos(theta)
   x2 <- C_true[2] + mu_true*sin(theta)
-  sigma_true <- rep(.01, p_true)
+  sigma_true <- c(seq(.005, .015, length = p_true/2),
+                  seq(.015, .005, length = p_true/2))#rep(.01, p_true)
   theta_dist <- compThetaDist(p_true, 2*pi/p_true)
   Sigma <- compSigma(sigma_true, 3, theta_dist)
   
@@ -73,10 +74,9 @@ compCoverage <- function(pars) {
   
   #sampling settings
   muPropSD = .001
-  CxPropSD = .003
-  CyPropSD = .0001
+  CxPropSD = .001
+  CyPropSD = .001
   kappaPropSD = .5
-  sigmaPropSD = .001
   theta1PropSD = .01
   
   #Fixed simulation info 
@@ -120,13 +120,15 @@ compCoverage <- function(pars) {
     kappa_ini = 3;
     temp <- XToWY(obs_coords, C_ini[1], C_ini[2], theta_ini)
     mu_ini <- rep(mean(apply(temp$y, 1, mean)), p_true) 
-    nu_ini <- sd(temp$w)
+    nu_ini <- .05
     sigma_ini <-  rep(mean(apply(temp$y, 1, sd)), p_true)
+    sigmaPropCov = .05*compSigma(sigma_ini, kappa_ini, theta_dist)
+    muPropCov <- .05*compSigma(sigma_ini, kappa_ini, theta_dist)
     
     #run MCMC to get parameter estimates
     fits <- RunMCMC(nIter = n_iter, x = obs_coords, 
-                    mu = mu_ini, mu0 = mu0, Lambda0 = Lambda0, muPropSD = muPropSD,
-                    nu = .0001, nuPropSD = .001, betaNu0 = .1,
+                    mu = mu_ini, mu0 = mu0, Lambda0 = Lambda0, muPropCov = muPropCov,
+                    nu = nu_ini, nuPropSD = .001, alphaNu0 = .01, betaNu0 = .1,
                     Cx = C_ini[1], Cx0 = Cx0, sigmaX0 = sigmaX0, CxPropSD = CxPropSD,
                     Cy = C_ini[2], Cy0 = Cy0, sigmaY0 = sigmaY0, CyPropSD = CyPropSD,
                     kappa = kappa_ini, alphaKappa0 = 0, betaKappa0 = 10, 
@@ -134,7 +136,8 @@ compCoverage <- function(pars) {
                     sigma = sigma_ini, betaSigma0 = betaSigma0, 
                     sigmaPropCov = sigmaPropCov,
                     theta1 = theta[1], theta1PropSD = theta1PropSD,
-                    kernHat = kern_pts)
+                    kernHat = kern_pts,
+                    gStart = g_start - 1, gEnd = g_end - 1)
     
     #parameter estimates
     mu_est <- apply(fits$mu[,(burn_in + 1):n_iter], 1, mean)
@@ -146,9 +149,7 @@ compCoverage <- function(pars) {
     nu_est <- mean(fits$nu[(burn_in + 1):n_iter])
     sigma_est <- apply(fits$sigma[,(burn_in + 1):n_iter],1, mean)
     Sigma_est <- compSigma(sigma_est, kappa_est, theta_dist)
-    
-  
-    
+
     #sample from true distribution (focusing on posterior predictive dist)
     y_test <-  mvrnorm(1, mu_true, Sigma)
     y_test[y_test < 0] <- 0
