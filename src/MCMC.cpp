@@ -323,8 +323,8 @@ List RunMCMC(int nIter, arma::cube x,
     ////////////update nu////////////////
     arma::vec nuProp = nuPropSD*arma::randn(1) + nu(0);
     if ((nuProp(0) > alphaNu0) & (nuProp(0) < betaNu0)) {
-      logR = (-n*p*log(nuProp(0))/2 -(1/(2*pow(nuProp(0), 2)))*wSqSum
-              +n*p*log(nu(0))/2 + (1/(2*pow(nu(0), 2)))*wSqSum);
+      logR = (-n*p*log(nuProp(0)) -(1/(2*pow(nuProp(0), 2)))*wSqSum
+              +n*p*log(nu(0)) + (1/(2*pow(nu(0), 2)))*wSqSum);
       if (logAccept(logR)) {
         nu = nuProp;
         nuRate++;
