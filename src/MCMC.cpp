@@ -221,12 +221,13 @@ List RunMCMC(int nIter, arma::cube x,
              arma::vec kappa, double alphaKappa0, double betaKappa0,
              arma::vec kappaPropSD,
              arma::vec sigma, double betaSigma0, arma::mat sigmaPropCov,
-             arma::vec theta1, double theta1PropSD,
+             arma::vec theta1, double theta1TilPropSD,
              arma::mat kernHat,
              arma::uvec gStart, arma::uvec gEnd,
              arma::vec sigmaC2, double sigmaC2PropSD,
              arma::vec muCx, arma::vec muCxPropSD, double muC0, double tau20,
-             arma::vec muCy, arma::vec muCyPropSD) {
+             arma::vec muCy, arma::vec muCyPropSD,
+             arma::vec alpha, arma::vec beta) {
   
   //constants
   double pi = 3.14159;
@@ -238,8 +239,7 @@ List RunMCMC(int nIter, arma::cube x,
   double thetaSpace = 2*pi/p;
   arma::vec seq = arma::linspace(0, p - 1, p);
   arma::vec theta = theta1(0) + seq*thetaSpace;
-  double theta1UB = theta1(0) + thetaSpace/2;
-  
+
   //Compute sigma matrix
   arma::mat thetaDist = compThetaDist(p, thetaSpace);
   arma::mat Sigma = compSigma(sigma, kappa, thetaDist);
@@ -251,13 +251,14 @@ List RunMCMC(int nIter, arma::cube x,
   double wSqSum = arma::accu(wSq);
   arma::mat y = temp["y"];
   arma::mat Lambda0Inv = inv(Lambda0);
+  arma::vec theta1Til = theta1/(2*pi/p);
 
   //storage vectors and matrices
   arma::mat muStore = arma::zeros(p, nIter);
-  arma::mat theta1Store = arma::zeros(nIter);
   arma::vec nuStore = arma::zeros(nIter);
   arma::vec muCxStore = arma::zeros(nIter);
   arma::vec muCyStore = arma::zeros(nIter);
+  arma::vec theta1Store = arma::zeros(nIter);
   arma::vec sigmaC2Store = arma::zeros(nIter);
   arma::vec CxStore = arma::zeros(nIter);
   arma::vec CyStore = arma::zeros(nIter);
@@ -266,10 +267,10 @@ List RunMCMC(int nIter, arma::cube x,
   
   //acceptance rates
   arma::vec muRate = arma::zeros(nGroup);
-  double theta1Rate = 0.0;
   double nuRate = 0.0;
   double muCxRate = 0.0;
   double muCyRate = 0.0;
+  double theta1Rate = 0.0;
   double sigmaC2Rate = 0.0;
   double CxRate = 0.0;
   double CyRate = 0.0;
@@ -303,31 +304,6 @@ List RunMCMC(int nIter, arma::cube x,
       }
     }
     muStore.col(i) = mu;
-    
-    
-    ///////////////update theta 1///////
-    arma::vec theta1Prop = theta1PropSD*arma::randn(1) + theta1(0);
-    arma::vec thetaPropShift = theta1Prop - theta1;
-    arma::vec thetaProp = theta + thetaPropShift(0);
-    temp = XToWY(x, Cx, Cy, thetaProp);
-    arma::mat wSqPropTheta = temp["wSq"];
-    double wSqSumPropTheta = arma::accu(wSqPropTheta);
-    arma::mat yPropTheta = temp["y"];
-    if ((theta1Prop(0) >= 0) & (theta1Prop(0) <= theta1UB)) {
-      logR = (-.5*sumQFCentSq(yPropTheta, mu, SigmaInv)
-                -(1/(2*pow(nu(0), 2)))*wSqSumPropTheta
-                +.5*sumQFCentSq(y, mu, SigmaInv)
-                +(1/(2*pow(nu(0), 2)))*wSqSum);
-                if (logAccept(logR)) {
-                  theta = thetaProp;
-                  y = yPropTheta;
-                  wSq = wSqPropTheta;
-                  wSqSum = wSqSumPropTheta;
-                  theta1 = theta1Prop;
-                  theta1Rate++;
-                }
-    }
-    theta1Store(i) = theta1(0);
     
     ////////////update nu////////////////
     arma::vec nuProp = nuPropSD*arma::randn(1) + nu(0);
@@ -368,6 +344,36 @@ List RunMCMC(int nIter, arma::cube x,
       }
     }
     muCyStore(i) = muCy(0);
+    
+    ///////////////update theta 1///////
+    arma::vec theta1TilProp = theta1TilPropSD*arma::randn(1) + theta1Til(0);
+    arma::vec theta1Prop = theta1TilProp*(2*pi/p);
+    arma::vec thetaPropShift = theta1Prop - theta1;
+    arma::vec thetaProp = theta + thetaPropShift(0);
+    temp = XToWY(x, Cx, Cy, thetaProp);
+    arma::mat wSqPropTheta = temp["wSq"];
+    double wSqSumPropTheta = arma::accu(wSqPropTheta);
+    arma::mat yPropTheta = temp["y"];
+    if ((theta1Til(0) >= 0) & (theta1Til(0) <= 1)) {
+      logR = ((alpha(0) - 1)*log(theta1TilProp(0)) 
+              +(beta(0) - 1)*log(1 - theta1TilProp(0))
+              -.5*sumQFCentSq(yPropTheta, mu, SigmaInv)
+              -(1/(2*pow(nu(0), 2)))*wSqSumPropTheta
+              -(alpha(0) - 1)*log(theta1Til(0)) 
+              -(beta(0) - 1)*log(1 - theta1Til(0))
+              +.5*sumQFCentSq(y, mu, SigmaInv)
+              +(1/(2*pow(nu(0), 2)))*wSqSum);
+      if (logAccept(logR)) {
+        theta = thetaProp;
+        y = yPropTheta;
+        wSq = wSqPropTheta;
+        wSqSum = wSqSumPropTheta;
+        theta1 = theta1Prop;
+        theta1Til = theta1TilProp;
+        theta1Rate++;
+      }
+    }
+    theta1Store(i) = theta1(0);
     
     ////////////update sigmaC2//////////////////
     arma::vec sigmaC2Prop = sigmaC2PropSD*arma::randn(1) + sigmaC2;
@@ -472,11 +478,11 @@ List RunMCMC(int nIter, arma::cube x,
   
   //update acceptance rates
   muRate = muRate/nIter;
-  theta1Rate = theta1Rate/nIter;
   nuRate = nuRate/nIter;
   muCxRate = muCxRate/nIter;
   muCyRate = muCyRate/nIter;
   sigmaC2Rate = sigmaC2Rate/nIter;
+  theta1Rate = theta1Rate/nIter;
   CxRate = CxRate/nIter;
   CyRate = CyRate/nIter;
   kappaRate = kappaRate/nIter;
@@ -485,7 +491,7 @@ List RunMCMC(int nIter, arma::cube x,
   //return
   List res;
   res["mu"] = muStore; res["muRate"] = muRate;
-  res["theta1"] = theta1Store; res["thetaRate"] = theta1Rate;
+  res["theta1"] = theta1Store; res["theta1Rate"] = theta1Rate;
   res["nu"] = nuStore; res["nuRate"] = nuRate;
   res["muCx"] = muCxStore; res["muCxRate"] = muCxRate;
   res["muCy"] = muCyStore; res["muCyRate"] = muCyRate;
