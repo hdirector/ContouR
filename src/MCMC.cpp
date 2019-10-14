@@ -215,7 +215,7 @@ arma::mat compSigma(arma::vec sigma, arma::vec kappa, arma::mat thetaDist) {
 //[[Rcpp::export]]
 List RunMCMC(int nIter, arma::cube x,
              arma::vec mu, arma::vec mu0, arma::mat Lambda0, arma::mat muPropCov,
-             arma::vec nu, double nuPropSD, double alphaNu0, double betaNu0,
+             arma::vec nu, double nuPropSD, double v10, double v20,
              arma::vec Cx, double Cx0, double sigmaX0, arma::vec CxPropSD,
              arma::vec Cy, double Cy0, double sigmaY0, arma::vec CyPropSD,
              arma::vec kappa, double alphaKappa0, double betaKappa0,
@@ -256,32 +256,33 @@ List RunMCMC(int nIter, arma::cube x,
 
   //storage vectors and matrices
   arma::mat muStore = arma::zeros(p, nIter);
+  arma::vec kappaStore = arma::zeros(nIter);
+  arma::mat sigmaStore = arma::zeros(p, nIter);
   arma::vec nuStore = arma::zeros(nIter);
   arma::vec muCxStore = arma::zeros(nIter);
   arma::vec muCyStore = arma::zeros(nIter);
-  arma::vec theta1Store = arma::zeros(nIter);
   arma::vec sigmaC2Store = arma::zeros(nIter);
-  arma::vec CxStore = arma::zeros(nIter);
-  arma::vec CyStore = arma::zeros(nIter);
   arma::vec alphaStore = arma::zeros(nIter);
   arma::vec betaStore = arma::zeros(nIter);
-  arma::vec kappaStore = arma::zeros(nIter);
-  arma::mat sigmaStore = arma::zeros(p, nIter);
-  
+  arma::vec CxStore = arma::zeros(nIter);
+  arma::vec CyStore = arma::zeros(nIter);
+  arma::vec theta1Store = arma::zeros(nIter);
+
+
   //acceptance rates
   arma::vec muRate = arma::zeros(nGroup);
+  double kappaRate = 0.0;
+  arma::vec sigmaRate = arma::zeros(nGroup);
   double nuRate = 0.0;
   double muCxRate = 0.0;
   double muCyRate = 0.0;
-  double theta1Rate = 0.0;
   double sigmaC2Rate = 0.0;
-  double CxRate = 0.0;
-  double CyRate = 0.0;
   double alphaRate = 0.0;
   double betaRate = 0.0;
-  double kappaRate = 0.0;
-  arma::vec sigmaRate = arma::zeros(nGroup);
-  
+  double CxRate = 0.0;
+  double CyRate = 0.0;
+  double theta1Rate = 0.0;
+
   //functional parameters
   arma::mat SigmaProp(p, p);
   arma::mat SigmaInvProp(p, p);
@@ -310,9 +311,45 @@ List RunMCMC(int nIter, arma::cube x,
     }
     muStore.col(i) = mu;
     
+    ////////////////update kappa/////////////////
+    arma::vec kappaProp =  kappaPropSD*arma::randn(1) + kappa;
+    if ((kappaProp(0) >= alphaKappa0) & (kappaProp(0) <= betaKappa0)) {
+      SigmaProp = compSigma(sigma, kappaProp, thetaDist);
+      SigmaInvProp = inv(SigmaProp);
+      logR = (-(n/2)*logDet(SigmaProp)  -.5*sumQFCentSq(y, mu, SigmaInvProp)
+                +(n/2)*logDet(Sigma)  +.5*sumQFCentSq(y, mu, SigmaInv));
+      if (logAccept(logR)) {
+        kappa = kappaProp;
+        kappaRate++;
+      }
+    }
+    kappaStore(i) = kappa(0);
+    
+    ////////////////update sigmas/////////////////
+    for (int g = 0; g < nGroup; g++) {
+      arma::uvec gInd = arma::linspace<arma::uvec>(gStart(g), gEnd(g),
+                                                   gEnd(g) - gStart(g) + 1);
+      arma::vec gProp = mvrnormCpp(sigma(gInd), sigmaPropCov(gInd, gInd));
+      if (all(gProp >= 0) && all(gProp < betaSigma0)) {
+        arma::vec sigmaGProp = sigma; 
+        sigmaGProp(gInd) = gProp;
+        arma::mat SigmaGProp = compSigma(sigmaGProp, kappa, thetaDist);
+        arma::mat SigmaGInvProp = inv(SigmaGProp);
+        logR = (-(n/2)*logDet(SigmaGProp) -.5*sumQFCentSq(y, mu, SigmaGInvProp)
+                  +(n/2)*logDet(Sigma) +.5*sumQFCentSq(y, mu, SigmaInv));
+        if (logAccept(logR)) {
+          sigma = sigmaGProp;
+          Sigma = SigmaGProp;
+          SigmaInv = SigmaGInvProp;
+          sigmaRate(g) = sigmaRate(g) + 1;
+        }
+      }
+    }
+    sigmaStore.col(i) = sigma;
+    
     ////////////update nu////////////////
     arma::vec nuProp = nuPropSD*arma::randn(1) + nu(0);
-    if ((nuProp(0) > alphaNu0) & (nuProp(0) < betaNu0)) {
+    if ((nuProp(0) > v10) & (nuProp(0) < v20)) {
       logR = (-n*p*log(nuProp(0)) -(1/(2*pow(nuProp(0), 2)))*wSqSum
               +n*p*log(nu(0)) + (1/(2*pow(nu(0), 2)))*wSqSum);
       if (logAccept(logR)) {
@@ -321,8 +358,8 @@ List RunMCMC(int nIter, arma::cube x,
       }
     }
     nuStore(i) = nu(0);
-    
-    ////////////////update muCx////////////
+
+    // ////////////////update muCx////////////
     arma::vec muCxProp = muCxPropSD*arma::randn(1) + muCx;
     if (ptInPoly(kernHat, muCxProp(0), muCy(0))) {
       logR = (-(1/(2*sigmaC2(0)))*pow(Cx(0) - muCxProp(0), 2)
@@ -350,48 +387,18 @@ List RunMCMC(int nIter, arma::cube x,
     }
     muCyStore(i) = muCy(0);
     
-    ///////////////update theta 1///////
-    arma::vec theta1TilProp = theta1TilPropSD*arma::randn(1) + theta1Til(0);
-    arma::vec theta1Prop = theta1TilProp*(2*pi/p);
-    arma::vec thetaPropShift = theta1Prop - theta1;
-    arma::vec thetaProp = theta + thetaPropShift(0);
-    temp = XToWY(x, Cx, Cy, thetaProp);
-    arma::mat wSqPropTheta = temp["wSq"];
-    double wSqSumPropTheta = arma::accu(wSqPropTheta);
-    arma::mat yPropTheta = temp["y"];
-    if ((theta1Til(0) >= 0) & (theta1Til(0) <= 1)) {
-      logR = ((alpha(0) - 1)*log(theta1TilProp(0)) 
-              +(beta(0) - 1)*log(1 - theta1TilProp(0))
-              -.5*sumQFCentSq(yPropTheta, mu, SigmaInv)
-              -(1/(2*pow(nu(0), 2)))*wSqSumPropTheta
-              -(alpha(0) - 1)*log(theta1Til(0)) 
-              -(beta(0) - 1)*log(1 - theta1Til(0))
-              +.5*sumQFCentSq(y, mu, SigmaInv)
-              +(1/(2*pow(nu(0), 2)))*wSqSum);
-      if (logAccept(logR)) {
-        theta = thetaProp;
-        y = yPropTheta;
-        wSq = wSqPropTheta;
-        wSqSum = wSqSumPropTheta;
-        theta1 = theta1Prop;
-        theta1Til = theta1TilProp;
-        theta1Rate++;
-      }
-    }
-    theta1Store(i) = theta1(0);
-    
-    ////////////update sigmaC2//////////////////
+    //////////update sigmaC2//////////////////
     arma::vec sigmaC2Prop = sigmaC2PropSD*arma::randn(1) + sigmaC2;
     if ((sigmaC2Prop(0) > d10) & (sigmaC2Prop(0) < d20)) {
-      logR = (-2*log(sigmaC2Prop(0)) 
-              -(1/(2*sigmaC2Prop(0))*pow(Cx(0) - muCx(0), 2))
-              -(1/(2*sigmaC2Prop(0))*pow(Cy(0) - muCy(0), 2))  
-              +2*log(sigmaC2(0)) 
-              +(1/(2*sigmaC2(0))*pow(Cx(0) - muCx(0), 2))
-              +(1/(2*sigmaC2(0))*pow(Cy(0) - muCy(0), 2)));  
+      logR = (-2*log(sigmaC2Prop(0))
+                -(1/(2*sigmaC2Prop(0))*pow(Cx(0) - muCx(0), 2))
+                -(1/(2*sigmaC2Prop(0))*pow(Cy(0) - muCy(0), 2))
+                +2*log(sigmaC2(0))
+                +(1/(2*sigmaC2(0))*pow(Cx(0) - muCx(0), 2))
+                +(1/(2*sigmaC2(0))*pow(Cy(0) - muCy(0), 2)));
       if (logAccept(logR)) {
-        sigmaC2 = sigmaC2Prop;
-        sigmaC2Rate++;
+          sigmaC2 = sigmaC2Prop;
+          sigmaC2Rate++;
       }
     }
     sigmaC2Store(i) = sigmaC2(0);
@@ -401,10 +408,10 @@ List RunMCMC(int nIter, arma::cube x,
     if ((alphaProp(0) > 0) & (alphaProp(0) < a0)) {
      logR = ((alphaProp(0) - 1)*log(theta1Til(0))
              -(alpha(0) - 1)*log(theta1Til(0)));
-    }
-    if (logAccept(logR)) {
-      alpha = alphaProp;
-      alphaRate++;
+      if (logAccept(logR)) {
+        alpha = alphaProp;
+        alphaRate++;
+      }
     }
     alphaStore(i) = alpha(0);
     
@@ -413,10 +420,10 @@ List RunMCMC(int nIter, arma::cube x,
     if ((betaProp(0) > 0) & (betaProp(0) < b0)) {
       logR = ((betaProp(0) - 1)*log(1 - theta1Til(0))
               -(beta(0) - 1)*log(1 - theta1Til(0)));
-    }
-    if (logAccept(logR)) {
-      beta = betaProp;
-      betaRate++;
+      if (logAccept(logR)) {
+        beta = betaProp;
+        betaRate++;
+      }
     }
     betaStore(i) = beta(0);
   
@@ -466,72 +473,68 @@ List RunMCMC(int nIter, arma::cube x,
     }
     CyStore(i) = Cy(0);
     
-    ////////////////update kappa/////////////////
-    arma::vec kappaProp =  kappaPropSD*arma::randn(1) + kappa;
-    if ((kappaProp(0) >= alphaKappa0) & (kappaProp(0) <= betaKappa0)) {
-      SigmaProp = compSigma(sigma, kappaProp, thetaDist);
-      SigmaInvProp = inv(SigmaProp);
-      logR = (-(n/2)*logDet(SigmaProp)  -.5*sumQFCentSq(y, mu, SigmaInvProp)
-                +(n/2)*logDet(Sigma)  +.5*sumQFCentSq(y, mu, SigmaInv));
-      if (logAccept(logR)) {
-        kappa = kappaProp;
-        kappaRate++;
-      }
+    ///////////////update theta 1///////
+    arma::vec theta1TilProp = theta1TilPropSD*arma::randn(1) + theta1Til(0);
+    arma::vec theta1Prop = theta1TilProp*(2*pi/p);
+    arma::vec thetaPropShift = theta1Prop - theta1;
+    arma::vec thetaProp = theta + thetaPropShift(0);
+    temp = XToWY(x, Cx, Cy, thetaProp);
+    arma::mat wSqPropTheta = temp["wSq"];
+    double wSqSumPropTheta = arma::accu(wSqPropTheta);
+    arma::mat yPropTheta = temp["y"];
+    if ((theta1Til(0) >= 0) & (theta1Til(0) <= 1)) {
+      logR = ((alpha(0) - 1)*log(theta1TilProp(0)) 
+                +(beta(0) - 1)*log(1 - theta1TilProp(0))
+                -.5*sumQFCentSq(yPropTheta, mu, SigmaInv)
+                -(1/(2*pow(nu(0), 2)))*wSqSumPropTheta
+                -(alpha(0) - 1)*log(theta1Til(0)) 
+                -(beta(0) - 1)*log(1 - theta1Til(0))
+                +.5*sumQFCentSq(y, mu, SigmaInv)
+                +(1/(2*pow(nu(0), 2)))*wSqSum);
+                if (logAccept(logR)) {
+                  theta = thetaProp;
+                  y = yPropTheta;
+                  wSq = wSqPropTheta;
+                  wSqSum = wSqSumPropTheta;
+                  theta1 = theta1Prop;
+                  theta1Til = theta1TilProp;
+                  theta1Rate++;
+                }
     }
-    kappaStore(i) = kappa(0);
-    
-    ////////////////update sigmas/////////////////
-    for (int g = 0; g < nGroup; g++) {
-      arma::uvec gInd = arma::linspace<arma::uvec>(gStart(g), gEnd(g),
-                                                   gEnd(g) - gStart(g) + 1);
-      arma::vec gProp = mvrnormCpp(sigma(gInd), sigmaPropCov(gInd, gInd));
-      if (all(gProp >= 0) && all(gProp < betaSigma0)) {
-        arma::vec sigmaGProp = sigma; 
-        sigmaGProp(gInd) = gProp;
-        arma::mat SigmaGProp = compSigma(sigmaGProp, kappa, thetaDist);
-        arma::mat SigmaGInvProp = inv(SigmaGProp);
-        logR = (-(n/2)*logDet(SigmaGProp) -.5*sumQFCentSq(y, mu, SigmaGInvProp)
-                  +(n/2)*logDet(Sigma) +.5*sumQFCentSq(y, mu, SigmaInv));
-        if (logAccept(logR)) {
-          sigma = sigmaGProp;
-          Sigma = SigmaGProp;
-          SigmaInv = SigmaGInvProp;
-          sigmaRate(g) = sigmaRate(g) + 1;
-        }
-      }
-    }
-    sigmaStore.col(i) = sigma;
+    theta1Store(i) = theta1(0);
   }
   
   
   //update acceptance rates
   muRate = muRate/nIter;
-  nuRate = nuRate/nIter;
-  muCxRate = muCxRate/nIter;
-  muCyRate = muCyRate/nIter;
-  sigmaC2Rate = sigmaC2Rate/nIter;
-  theta1Rate = theta1Rate/nIter;
-  CxRate = CxRate/nIter;
-  CyRate = CyRate/nIter;
-  alphaRate = alphaRate/nIter;
   kappaRate = kappaRate/nIter;
   sigmaRate = sigmaRate/nIter;
+  nuRate = nuRate/nIter;
+  sigmaC2Rate = sigmaC2Rate/nIter;
+  muCxRate = muCxRate/nIter;
+  muCyRate = muCyRate/nIter;
+  alphaRate = alphaRate/nIter;
+  betaRate = betaRate/nIter;
+  CxRate = CxRate/nIter;
+  CyRate = CyRate/nIter;
+  theta1Rate = theta1Rate/nIter;
+
+ 
   
   //return
   List res;
   res["mu"] = muStore; res["muRate"] = muRate;
-  res["theta1"] = theta1Store; res["theta1Rate"] = theta1Rate;
+  res["kappa"] = kappaStore; res["kappaRate"] = kappaRate;
+  res["sigma"] = sigmaStore; res["sigmaRate"] = sigmaRate;
   res["nu"] = nuStore; res["nuRate"] = nuRate;
   res["muCx"] = muCxStore; res["muCxRate"] = muCxRate;
   res["muCy"] = muCyStore; res["muCyRate"] = muCyRate;
-  res["Cx"] = CxStore; res["CxRate"] = CxRate;
-  res["Cy"] = CyStore; res["CyRate"] = CyRate;
+  res["sigmaC2"] = sigmaC2Store; res["sigmaC2Rate"] = sigmaC2Rate;
   res["alpha"] = alphaStore; res["alphaRate"] = alphaRate;
   res["beta"] = betaStore; res["betaRate"] = betaRate;
-  res["sigmaC2"] = sigmaC2Store; res["sigmaC2Rate"] = sigmaC2Rate;
-  res["kappa"] = kappaStore; res["kappaRate"] = kappaRate;
-  res["sigma"] = sigmaStore; res["sigmaRate"] = sigmaRate;
-  res["wSq"] = wSq; res["y"] = y;
+  res["Cx"] = CxStore; res["CxRate"] = CxRate;
+  res["Cy"] = CyStore; res["CyRate"] = CyRate;
+  res["theta1"] = theta1Store; res["theta1Rate"] = theta1Rate;
   
   return(res);
 }

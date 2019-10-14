@@ -51,11 +51,11 @@ muPropSD = .001
 CxPropSD = .001
 CyPropSD = .001
 kappaPropSD = .5
-theta1PropSD = .01
+theta1TilPropSD = .01
 
 #Fixed simulation info 
-n_iter <-  10000
-burn_in <- 5000
+n_iter <-  30000
+burn_in <- 20000
 g_space <- 5
 g_start <- seq(1, p_true, by = g_space)
 g_end <- c(seq(g_space, p_true, by = g_space), p_true)
@@ -98,19 +98,22 @@ muPropCov <- .05*compSigma(sigma_ini, kappa_ini, theta_dist)
 #run MCMC to get parameter estimates
 fits <- RunMCMC(nIter = n_iter, x = obs_coords, 
                 mu = mu_ini, mu0 = mu0, Lambda0 = Lambda0, muPropCov = muPropCov,
-                nu = nu_ini, nuPropSD = .001, alphaNu0 = .01, betaNu0 = .1,
-                Cx = C_ini[1], Cx0 = Cx0, sigmaX0 = sigmaX0, CxPropSD = CxPropSD,
-                Cy = C_ini[2], Cy0 = Cy0, sigmaY0 = sigmaY0, CyPropSD = CyPropSD,
+                nu = .001, nuPropSD = .00001, v10 = .0001, v20 = .1,
+                Cx = C_ini[1], Cx0 = Cx0, sigmaX0 = sigmaX0, CxPropSD = .0001,
+                Cy = C_ini[2], Cy0 = Cy0, sigmaY0 = sigmaY0, CyPropSD = .0001,
                 kappa = kappa_ini, alphaKappa0 = 0, betaKappa0 = 10, 
                 kappaPropSD = kappaPropSD,
                 sigma = sigma_ini, betaSigma0 = betaSigma0, 
                 sigmaPropCov = sigmaPropCov,
-                theta1 = theta[1], theta1PropSD = theta1PropSD,
+                theta1 = theta[1], theta1TilPropSD = .001,
                 kernHat = kern_pts,
                 gStart = g_start - 1, gEnd = g_end - 1,
-                sigmaC2  = .1,
-                muCx = .5,
-                muCy = .5)
+                sigmaC2  = .0001, sigmaC2PropSD = .00005, d10 = .00005, d20 = .005,
+                muCx = C_ini[1], muCxPropSD = .01,  muC0 = .5, tau20 = .25,
+                muCy = C_ini[2], muCyPropSD = .01,
+                alpha = 100, alphaPropSD = .5, a0 = 1000,
+                beta = 100, betaPropSD = .5, b0 = 100)
+
   
   #parameter estimates
   mu_est <- apply(fits$mu[,(burn_in + 1):n_iter], 1, mean)
