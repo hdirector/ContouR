@@ -1,5 +1,4 @@
 
-
 #cases
 Cx <- .2; Cy <- .3
 horiz_x <- .18; horiz_y <- .3 #pt horizontal to (Cx, Cy)
@@ -97,3 +96,60 @@ stopifnot(abs(w - sqrt(sum((c(q4_x, q4_y) - q4_pts$pt2)^2))) < 1e-10)
 q4_rot <- perpen_rot(pt1 = q4_pts$pt1, pt2 = q4_pts$pt2, Cx, Cy) 
 points(q4_rot$ccw[1], q4_rot$ccw[2], pch = 8)
 points(q4_rot$cw[1], q4_rot$cw[2], pch = 2)
+
+
+####################################
+#test main function 
+###################################
+#case 1
+nu <- .1;
+plot(Cx, Cy,  xlim = c(0, .5), ylim = c(0, .5))
+points(q4_x, q4_y, col = 'red')
+points(rbind(c(Cx, Cy), c(q4_x, q4_y)), type = "l" )
+
+n_test <- 100
+adj_length <- rep(NA, n_test)
+for (i in 1:n_test) {
+  fin_pt <- perpen_pt(nu, Cx, Cy, paral_x = q4_x, paral_y = q4_y) 
+  points(fin_pt$pt[1], fin_pt$pt[2], col = 'green', cex = .1, pch = 20)
+  adj_length[i] <- fin_pt$sign*get_dist(fin_pt$pt, c(q4_x, q4_y))
+}
+hist(adj_length)
+mean(adj_length)
+sd(adj_length)
+
+#case 2
+nu <- .001;
+plot(Cx, Cy,  xlim = c(0, .5), ylim = c(0, .5))
+points(vert_x, vert_y, col = 'red')
+points(rbind(c(Cx, Cy), c(vert_x, vert_y)), type = "l" )
+
+n_test <- 100
+adj_length <- rep(NA, n_test)
+for (i in 1:n_test) {
+  fin_pt <- perpen_pt(nu, Cx, Cy, paral_x = vert_x, paral_y = vert_y) 
+  points(fin_pt$pt[1], fin_pt$pt[2], col = 'green', cex = .1, pch = 20)
+  adj_length[i] <- fin_pt$sign*get_dist(fin_pt$pt, c(vert_x, vert_y))
+}
+hist(adj_length)
+mean(adj_length)
+sd(adj_length)
+
+#case 3
+nu <- .25;
+plot(Cx, Cy,  xlim = c(0, .5), ylim = c(0, .5))
+points(q2_x, q2_y, col = 'red')
+points(rbind(c(Cx, Cy), c(q2_x, q2_y)), type = "l" )
+
+n_test <- 100
+adj_length <- rep(NA, n_test)
+for (i in 1:n_test) {
+  fin_pt <- perpen_pt(nu, Cx, Cy, paral_x = q2_x, paral_y = q2_y) 
+  points(fin_pt$pt[1], fin_pt$pt[2], col = 'green', cex = .1, pch = 20)
+  adj_length[i] <- fin_pt$sign*get_dist(fin_pt$pt, c(q2_x, q2_y))
+}
+hist(adj_length)
+mean(adj_length)
+sd(adj_length)
+
+

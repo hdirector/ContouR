@@ -5,7 +5,7 @@
 #' @param Cy y-coordinate of center point
 #' @param ptX x-coordiante of distance from center point
 #' @param ptY y-coordinate of distance from center point
-perpen_pts <- function(w, Cx, Cy, ptX, ptY) {
+perpen_poss <- function(w, Cx, Cy, ptX, ptY) {
   if ((Cx == ptX) & (Cy == ptY)) { #error case
     stop("Cx == ptX & Cy == ptY")
   } else if (Cx == ptX) { #vertical line
@@ -71,4 +71,16 @@ perpen_rot <- function(pt1, pt2, Cx, Cy) {
     }
   }
   return(list("ccw" = c(ccw_x, ccw_y), "cw" = c(cw_x, cw_y)))
+}
+
+# Compute final point from perpendicular noise
+perpen_pt <- function(nu, Cx, Cy, paral_x, paral_y) {
+  w <- rnorm(1, 0, nu)
+  poss_pts <- perpen_poss(w, Cx, Cy, paral_x, paral_y) 
+  poss_rot <- perpen_rot(poss_pts$pt1, poss_pts$pt2, Cx, Cy)
+  if (w > 0) {
+    return(poss_rot$ccw)
+  } else {
+    return(poss_rot$cw)
+  }
 }
