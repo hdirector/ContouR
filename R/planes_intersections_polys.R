@@ -41,8 +41,8 @@ bbox <- function() {
 }
 
 
-# Make an interior half-plane given the first and last points of the edge
-# bounding box
+#' Make an interior half-plane given the first and last points of the edge
+#' bounding box
 #' @param p1 vector of coordinates of first point
 #' @param p2 vector of coordinates of second point
 #' @param poly \code{SpatialPolygons} object giving the polygon of interest
