@@ -4,10 +4,11 @@ set.seed(103)
 library("sp")
 library("fields")
 library("Rcpp")
+library("MASS")
 source("R/gen_conts.R")
 source("R/perpen_shift.R")
 source("R/planes_intersections_polys.R")
-sourceCpp("src/MCMCSimp.cpp")
+sourceCpp("src/MCMC.cpp")
 
 
 #truth
@@ -20,17 +21,13 @@ nu_true <- .01
 muCx_true <- .5
 muCy_true <- .5
 sigmaC2_true <- .00001
-alpha_true <- 10000
-beta_true <- 10000
+theta1_true <- 2*pi/p_true/2
 
 #simulate observations
 n_obs <- 100
 obs <- gen_conts(n_obs, mu = mu_true, kappa = kappa_true, sigma = sigma_true,
                  nu = nu_true, muCx = muCx_true, muCy = muCy_true,
-                 sigmaC2 = sigmaC2_true, alpha = alpha_true, beta = beta_true)
-# obs <- gen_conts_simp(n_obs, mu = mu_true, kappa = kappa_true, sigma = sigma_true, 
-#                       muCx = muCx_true, muCy = muCy_true, 
-#                       sigmaC2 = sigmaC2_true)
+                 sigmaC2 = sigmaC2_true, theta1 = theta1_true)
 
 #Priors (formal criteria needed)
 mu0 <-  rep(.15, p_true); Lambda0 <- .05*diag(p_true) 
@@ -38,10 +35,7 @@ betaKappa0 <- 100
 betaSigma0 <- .1
 v0 <- .05
 muC0 <- .5; tau20 <- .25
-d0 <- 1
-a0 <- 100
-b0 <- 100
-
+d0 <- .5
 
 # #find observed intersection kernel
 # for (i in 1:n_obs) {
@@ -62,15 +56,14 @@ C_ini <- c(.2, .3)
 
 #initial values
 theta_ini <- seq(2*pi/p_true/2, 2*pi, by = 2*pi/p_true)
-C_ini <- gCentroid(kern)@coords
+#C_ini <- gCentroid(kern)@coords
 temp <- XToWY(obs$coords, C_ini[1], C_ini[2], theta_ini)
 mu_ini <- rep(mean(apply(temp$y, 1, mean)), p_true) 
 kappa_ini = 5;
 sigma_ini <-  rep(mean(apply(temp$y, 1, sd)), p_true)
 nu_ini <- .05
 sigmaC2_ini <- .01
-alpha_ini <- 25
-beta_ini <- 25
+
 
 #non-scaler proposals
 theta_dist <- compThetaDist(p_true, 2*pi/p_true)
@@ -87,7 +80,7 @@ g_end <- c(seq(g_space, p_true, by = g_space), p_true)
 
 #wSqSum should be approx .000012 = (.0001)^2*100*12
 #NOT .001*100*12 which it seems to be
-fits <- RunMCMCSimp(nIter = n_iter, x = obs$coords,
+fits <- RunMCMC(nIter = n_iter, x = obs$coords,
                 mu = mu_ini, mu0, Lambda0, muPropCov,
                 kappa = kappa_ini, betaKappa0, kappaPropSD = .05,
                 sigma = sigma_ini, betaSigma0, sigmaPropCov,
@@ -96,11 +89,9 @@ fits <- RunMCMCSimp(nIter = n_iter, x = obs$coords,
                 muC0, tau20,
                 muCy = C_ini[2], muCyPropSD = .005,
                 sigmaC2 = sigmaC2_true, d0 = .001, sigmaC2PropSD = .00001,
-                alpha = alpha_true, a0, alphaPropSD = .5,
-                beta = beta_true, b0, betaPropSD = .5,
                 Cx = C_ini[1], CxPropSD =  .001,
                 Cy = C_ini[2], CyPropSD = .001,
-                theta1 = theta_ini[1], theta1TilPropSD = .01,
+                theta1 = theta_ini[1], 
                 kernHat = kern_pts, gStart = g_start - 1, gEnd = g_end - 1)
 
 #parameter estimates
@@ -111,8 +102,6 @@ nu_est <- mean(fits$nu[(burn_in + 1):n_iter])
 muCx_est <- mean(fits$muCx[(burn_in + 1):n_iter])
 muCy_est <- mean(fits$muCy[(burn_in + 1):n_iter])
 sigmaC2_est <- mean(fits$sigmaC2[(burn_in + 1):n_iter])
-alpha_est <- mean(fits$alpha[(burn_in + 1):n_iter])
-beta_est <- mean(fits$beta[(burn_in + 1):n_iter])
 
 #mu evaluation
 for (i in 1:p_true) {
@@ -153,25 +142,11 @@ points(muCx_true, muCy_true, col = 'red')
 fits$muCxRate; fits$muCyRate
 
 #sigmaC2
-# plot(fits$sigmaC2, type= "l")
-# abline(h = sigmaC2_true, col = 'red')
-# fits$sigmaC2Rate
-# sigmaC2_est; sigmaC2_true
+plot(fits$sigmaC2, type= "l")
+abline(h = sigmaC2_true, col = 'red')
+fits$sigmaC2Rate
+sigmaC2_est; sigmaC2_true
 
-# #alpha
-# plot(fits$alpha, type= "l")
-# abline(h = alpha_true, col = 'red')
-# fits$alphaRate
-# 
-# #beta
-# plot(fits$beta, type= "l")
-# abline(h = beta_true, col = 'red')
-# fits$betaRate
-# 
-# #theta1 
-# plot(fits$theta1, type= 'l')
-# fits$theta1Rate
-# abline(h = 2*pi/p_true/2, col = 'red')
 
 #Cx, Cy
 plot(fits$Cx, type= "l")
