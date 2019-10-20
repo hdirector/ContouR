@@ -454,7 +454,7 @@ List RunMCMC(int nIter, arma::cube x,
   muCxRate = muCxRate/nIter;
   muCyRate = muCyRate/nIter;
   CxRate = CxRate/nIter;
-  CyRate = CyRate/nIter;
+  CyRate = CyRate/nIter; 
   
   //return
   List res;

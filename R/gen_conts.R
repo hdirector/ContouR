@@ -8,8 +8,8 @@
 #' @param muCy parameter \eqn{muCy} in model
 #' @param sigmaC2 parameter \eqn{sigmaC2} in model
 #' @param theta1 angle of first line
-gen_conts<- function(n_sim, mu, kappa, sigma, nu, muCx, muCy, sigmaC2,
-                     theta1) {
+gen_conts <- function(n_sim, mu, kappa, sigma, nu, muCx, muCy, sigmaC2,
+                      theta1) {
   #preliminary
   p <- length(mu)
   theta_space <- 2*pi/p
@@ -22,10 +22,15 @@ gen_conts<- function(n_sim, mu, kappa, sigma, nu, muCx, muCy, sigmaC2,
   y_sim[y_sim < 0] <- 0 #no negative lengths
   thetas_sim <- matrix(rep(theta1 + theta_spacing, n_sim), ncol = n_sim)
   paral <- array(dim = c(4, p, n_sim)) # dim1 = Cx_sim, Cy_sim, paral_x, paral_y, 
-  paral[1,,] <- matrix(rep(rnorm(n_sim, muCx, sqrt(sigmaC2)), each = p),
-                       ncol = n_sim)
-  paral[2,,] <- matrix(rep(rnorm(n_sim, muCy, sqrt(sigmaC2)), each = p),
-                       ncol = n_sim)
+  if (sigmaC2 != 0) {
+    paral[1,,] <- matrix(rep(rnorm(n_sim, muCx, sqrt(sigmaC2)), each = p),
+                         ncol = n_sim)
+    paral[2,,] <- matrix(rep(rnorm(n_sim, muCy, sqrt(sigmaC2)), each = p),
+                        ncol = n_sim)
+  } else {
+    paral[1,,] <- matrix(data = muCx, nrow = p, ncol = n_sim)
+    paral[2,,] <- matrix(data = muCy, nrow = p, ncol = n_sim)
+  }
   paral[3,,] <- y_sim*cos(thetas_sim) + paral[1,,]
   paral[4,,] <- y_sim*sin(thetas_sim) + paral[2,,]
   stopifnot(all(paral > 0))

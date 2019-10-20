@@ -3,6 +3,7 @@ rm(list = ls())
 set.seed(103)
 library("sp")
 library("fields")
+library("rgeos")
 library("Rcpp")
 library("MASS")
 source("R/gen_conts.R")
@@ -20,14 +21,13 @@ sigma_true <- c(seq(.005, .015, length = p_true/2),
 nu_true <- .01
 muCx_true <- .5
 muCy_true <- .5
-sigmaC2_true <- .00001
 theta1_true <- 2*pi/p_true/2
 
 #simulate observations
-n_obs <- 100
-obs <- gen_conts(n_obs, mu = mu_true, kappa = kappa_true, sigma = sigma_true,
-                 nu = nu_true, muCx = muCx_true, muCy = muCy_true,
-                 sigmaC2 = sigmaC2_true, theta1 = theta1_true)
+n_obs <- 10
+obs <- gen_conts(n_sim = n_obs, mu = mu_true, kappa = kappa_true, 
+                 sigma = sigma_true, nu = nu_true, muCx = muCx_true, 
+                 muCy = muCy_true, sigmaC2 = 0, theta1 = theta1_true)
 
 #Priors (formal criteria needed)
 mu0 <-  rep(.15, p_true); Lambda0 <- .05*diag(p_true) 
@@ -38,31 +38,25 @@ muC0 <- .5; tau20 <- .25
 d0 <- .5
 
 # #find observed intersection kernel
-# for (i in 1:n_obs) {
-#   kern_curr <- find_kernel(rbind(t(obs$coords[,,i]), t(obs$coords[,1,i])))
-#   if (i == 1) {
-#     kern <- kern_curr
-#   } else {
-#     kern <- gIntersection(kern, kern_curr)
-#   }
-# }
-# kern_pts <- t(kern@polygons[[1]]@Polygons[[1]]@coords)
-kern_pts <- t(rbind(c(0, 0),
-                  c(5, 0),
-                  c(5, 5), 
-                  c(0, 5),
-                  c(0, 0)))
-C_ini <- c(.2, .3)
+for (i in 1:n_obs) {
+  kern_curr <- find_kernel(rbind(t(obs$coords[,,i]), t(obs$coords[,1,i])))
+  if (i == 1) {
+    kern <- kern_curr
+  } else {
+    kern <- gIntersection(kern, kern_curr)
+  }
+}
+kern_pts <- t(kern@polygons[[1]]@Polygons[[1]]@coords)
 
 #initial values
 theta_ini <- seq(2*pi/p_true/2, 2*pi, by = 2*pi/p_true)
-#C_ini <- gCentroid(kern)@coords
+C_ini <- gCentroid(kern)@coords
 temp <- XToWY(obs$coords, C_ini[1], C_ini[2], theta_ini)
 mu_ini <- rep(mean(apply(temp$y, 1, mean)), p_true) 
 kappa_ini = 5;
 sigma_ini <-  rep(mean(apply(temp$y, 1, sd)), p_true)
 nu_ini <- .05
-sigmaC2_ini <- .01
+sigmaC2_ini <- 1e-5
 
 
 #non-scaler proposals
@@ -71,15 +65,13 @@ sigmaPropCov = .005*compSigma(sigma_ini, kappa_ini, theta_dist)
 muPropCov <- .001*compSigma(sigma_ini, kappa_ini, theta_dist)
 
 #Fixed simulation info 
-n_iter <- 30000
-burn_in <- 15000
+n_iter <- 50000
+burn_in <- 40000
 g_space <- 1
 g_start <- seq(1, p_true, by = g_space)
 g_end <- c(seq(g_space, p_true, by = g_space), p_true)
 
-
-#wSqSum should be approx .000012 = (.0001)^2*100*12
-#NOT .001*100*12 which it seems to be
+#fit model
 fits <- RunMCMC(nIter = n_iter, x = obs$coords,
                 mu = mu_ini, mu0, Lambda0, muPropCov,
                 kappa = kappa_ini, betaKappa0, kappaPropSD = .05,
@@ -88,7 +80,7 @@ fits <- RunMCMC(nIter = n_iter, x = obs$coords,
                 muCx = C_ini[1], muCxPropSD = .005, 
                 muC0, tau20,
                 muCy = C_ini[2], muCyPropSD = .005,
-                sigmaC2 = sigmaC2_true, d0 = .001, sigmaC2PropSD = .00001,
+                sigmaC2 = sigmaC2_ini, d0 = .001, sigmaC2PropSD = .00001,
                 Cx = C_ini[1], CxPropSD =  .001,
                 Cy = C_ini[2], CyPropSD = .001,
                 theta1 = theta_ini[1], 
@@ -143,10 +135,7 @@ fits$muCxRate; fits$muCyRate
 
 #sigmaC2
 plot(fits$sigmaC2, type= "l")
-abline(h = sigmaC2_true, col = 'red')
 fits$sigmaC2Rate
-sigmaC2_est; sigmaC2_true
-
 
 #Cx, Cy
 plot(fits$Cx, type= "l")
