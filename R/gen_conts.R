@@ -18,7 +18,7 @@ gen_conts <- function(n_sim, mu, kappa, sigma, nu, muCx, muCy, sigmaC2,
   Sigma <- compSigma(sigma, kappa, theta)
   
   #Simulate parallel points
-  y_sim <-  t(mvrnorm(n_sim, mu, Sigma))
+  y_sim <-  matrix(t(mvrnorm(n_sim, mu, Sigma)), ncol = n_sim)
   y_sim[y_sim < 0] <- 0 #no negative lengths
   thetas_sim <- matrix(rep(theta1 + theta_spacing, n_sim), ncol = n_sim)
   paral <- array(dim = c(4, p, n_sim)) # dim1 = Cx_sim, Cy_sim, paral_x, paral_y, 
