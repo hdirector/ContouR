@@ -63,14 +63,14 @@ dist_mat_circle <- function(n) {
   return(dists)
 }
 
-#function to compute probability
-get_prob_sim <- function(n_sim, mu_est, Sigma_est, Cx_est, Cy_est, theta_est) {
-  y_sim <-  mvrnorm(n_sim, mu_est, Sigma_est) 
-  y_sim[y_sim < 0] <- 0 #no negative lengths
-  sim_polys <- apply(y_sim, 1, function(x){make_poly(cbind(Cx_est + x*cos(theta_est),
-                                                           Cy_est + x*sin(theta_est)), "sim")})
-  sim_grid <- lapply(sim_polys, function(x){conv_to_grid(x, nrows = 100, 
-                                                         ncols = 100, xmn = 0, 
+#' Compute probability field from contour polygons
+#' @param polys list of contours as polygon objects
+#' @param nrows number of rows in grid, defaults to 100
+#' @param ncols number of columns in grid, defaults to 100
+prob_field <- function(polys, nrows = 100, ncols = 100) {
+  n_sim <- length(polys)
+  sim_grid <- lapply(polys, function(x){conv_to_grid(x, nrows = nrows, 
+                                                         ncols = ncols, xmn = 0, 
                                                          xmx = 1, ymn = 0,
                                                          ymx = 1)})
   prob <- Reduce("+", sim_grid)/n_sim
