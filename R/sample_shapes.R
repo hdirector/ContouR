@@ -43,7 +43,7 @@ sigma_stop <- rep(.005, p)
 #generate probability distribution
 gens_stop <- gen_conts_simp(n_sim = n_gen, mu_stop, kappa = kappa_stop,
                             sigma_stop, Cx = Cx, Cy = Cy, theta[1])
-stop_bound <- sapply(gens_stop$lines, function(x){conv_to_grid(x)})
+stop_bound <- sapply(gens_stop$lines, function(x){conv_to_grid(x, n_grid, n_grid)})
 stop_prob <- matrix(apply(stop_bound, 1, mean), nrow = n_grid, ncol = n_grid)
 
 #make figures
@@ -83,7 +83,7 @@ sigma_tie <- c(seq(.008, .012, length = 8), seq(.012, .008, length = 7),
 #generate probability distribution
 gens_tie <- gen_conts_simp(n_sim = n_gen, mu_tie, kappa = kappa_tie,
                             sigma_tie, Cx = Cx, Cy = Cy, theta[1])
-tie_bound <- sapply(gens_tie$lines, function(x){conv_to_grid(x)})
+tie_bound <- sapply(gens_tie$lines, function(x){conv_to_grid(x, n_grid, n_grid)})
 tie_prob <- matrix(apply(tie_bound, 1, mean), nrow = n_grid, ncol = n_grid)
 
 #make figures
@@ -141,7 +141,7 @@ image.plot(tree_prob, xlim = c(.3, .7), ylim = c(.3, .7),
            xaxt = "n", yaxt = "n", col = viridis(10))
 
 #save shape parameters
-tree <- list("mu" = mu_tie, "kappa" = kappa_tie, "sigma" = sigma_tie, 
+tree <- list("mu" = mu_tree, "kappa" = kappa_tree, "sigma" = sigma_tree, 
             "Cx" = Cx, "Cy" = Cy)
 save(tree, file = "shape_pars/tree.rda")
 
