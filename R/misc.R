@@ -76,3 +76,13 @@ prob_field <- function(polys, nrows = 100, ncols = 100) {
   prob <- Reduce("+", sim_grid)/n_sim
   return(prob)
 }
+
+#' Compute which value of C gives the minimum w value
+#' @param C vector of (x, y) coordinates of center point
+#' @param x x coordinates of dimension (x, y) x number of points per contours x
+#' number of contours
+#' @param theta vector of coordinates giving the angle of each generating line
+minW <- function(C, x, theta) {
+  temp <- XToWY(C, x, theta) 
+  return(max(sqrt(temp$wSq)))
+}
