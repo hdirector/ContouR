@@ -14,8 +14,8 @@ gen_conts <- function(n_sim, mu, kappa, sigma, nu, muCx, muCy, sigmaC2,
   p <- length(mu)
   theta_space <- 2*pi/p
   theta_spacing <- theta_space*(0:(p-1))
-  theta <- compThetaDist(p, 2*pi/p)
-  Sigma <- compSigma(sigma, kappa, theta)
+  theta_dist <- compThetaDist(p,theta_space)
+  Sigma <- compSigma(sigma, kappa, theta_dist)
   
   #Simulate parallel points
   y_sim <-  matrix(t(mvrnorm(n_sim, mu, Sigma)), ncol = n_sim)
@@ -88,32 +88,25 @@ gen_conts_rand_theta <- function(n_sim, mu, kappa, sigma, nu, muCx, muCy,
 #' @param mu parameter \eqn{mu} in model
 #' @param kappa parameter \eqn{kappa} in model
 #' @param sigma parameter \eqn{sigma} in model
-#' @param muCx parameter \eqn{muCx} in model
-#' @param muCy parameter \eqn{muCy} in model
-#' @param sigmaC2 parameter \eqn{sigmaC2} in model
-gen_conts_simp <- function(n_sim, mu, kappa, sigma, muCx, muCy, sigmaC2) {
+#' @param Cx parameter \eqn{Cx} in model
+#' @param Cy parameter \eqn{Cy} in model
+gen_conts_simp <- function(n_sim, mu, kappa, sigma, Cx, Cy, theta1) {
   #preliminary
   p <- length(mu)
   theta_space <- 2*pi/p
-  theta <- compThetaDist(p, 2*pi/p)
-  Sigma <- compSigma(sigma, kappa, theta)
+  thetas <- seq(theta_space/2, 2*pi, by = theta_space)
+  theta_dist <- compThetaDist(p, theta_space)
+  Sigma <- compSigma(sigma, kappa, theta_dist)
   
-  #Simulate parallel points
+  #Simulate coordinates
   y_sim <-  t(mvrnorm(n_sim, mu, Sigma))
   y_sim[y_sim < 0] <- 0 #no negative lengths
-  theta1_fix = matrix(rep(theta_space/2, n_sim), nrow = 1)
-  theta_spacing <- seq(0, 2*pi - theta_space, theta_space)
-  thetas_sim <- apply(theta1_fix, 2, function(x){(x + theta_spacing)%%(2*pi)})
-  paral <- array(dim = c(4, p, n_sim)) # dim1 = Cx_sim, Cy_sim, paral_x, paral_y, 
-  paral[1,,] <- matrix(rep(rnorm(n_sim, muCx, sqrt(sigmaC2)), each = p),
-                       ncol = n_sim)
-  paral[2,,] <- matrix(rep(rnorm(n_sim, muCy, sqrt(sigmaC2)), each = p),
-                       ncol = n_sim)
-  paral[3,,] <- y_sim*cos(thetas_sim) + paral[1,,]
-  paral[4,,] <- y_sim*sin(thetas_sim) + paral[2,,]
+  thetas_mat <- matrix(rep(thetas, n_sim), ncol = n_sim)
+  coords <- array(dim = c(2, p, n_sim)) 
+  coords[1,,] <- y_sim*cos(thetas) + Cx
+  coords[2,,] <- y_sim*sin(thetas) + Cy
   
-  #add perpendicular noise
-  coords <- paral[3:4,,]
+  #convert to polygons
   polys <- apply(coords, 3, function(x){make_poly(cbind(x[1,], x[2,]), "sim")})
   return(list("coords" = coords, "polys" = polys))
 }
