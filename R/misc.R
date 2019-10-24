@@ -33,6 +33,35 @@ conv_to_poly <- function(dat, xmn = 0, xmx = 1, ymn = 0, ymx = 1) {
   return(poly)
 }
 
+#' Find the line corresponding to the boundary line of a polygon, accounting
+#' for the grid
+#' @param poly \code{SpatialPolygons} object 
+#' @param nrows rows in the grid
+#' @param ncols columns in the grid
+poly_to_gridded_line <- function(poly, nrows, ncols) {
+  regrid <- conv_to_grid(poly, nrows = nrows, ncols = ncols, xmn = 0, xmx = 1,
+                         ymn = 0, ymx = 1)
+  regrid_poly <- conv_to_poly(regrid)
+  regrid_line <- as(regrid_poly, "SpatialLines")
+  return(regrid_line)
+}
+
+#' Find interesction between a \code{SpatialLine} and the polygons and lines
+#' in a \code{SpatialCollections} object
+#' @param line \code{SpatialLines} object
+#' @param coll \code{SpatialCollections} or \code{SpatialPolygons object}
+line_inter_coll <- function(line, coll) {
+  if (is(coll)[1] == "SpatialPolygons") {
+    return(gIntersection(coll, line))
+  } else {
+    inter1 <- gIntersection(coll@lineobj, line)
+    inter1@lines[[1]]@ID <- "line"
+    inter2 <- gIntersection(coll@polyobj, line)
+    inter <- aggregate(spRbind(inter1, inter2))
+    return(inter)
+  }
+}
+
 
 #' Find angle distance between two angle measures in range (0, 2pi)
 #' @title Distance between angles
@@ -76,6 +105,7 @@ prob_field <- function(polys, nrows = 100, ncols = 100) {
   prob <- Reduce("+", sim_grid)/n_sim
   return(prob)
 }
+
 
 #' Compute which value of C gives the minimum w value
 #' @param C vector of (x, y) coordinates of center point
