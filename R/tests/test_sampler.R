@@ -21,17 +21,19 @@ mu_true <- c(seq(.1, .4, length = p_true/4), seq(.4, .1, length = 3*p_true/4))
 kappa_true <- 3
 sigma_true <- c(seq(.005, .015, length = p_true/2),
                 seq(.015, .005, length = p_true/2))
-theta_space <- 2*pi/p_true
-thetas <- seq(theta_space/2, 2*pi, by = theta_space)
-theta1 <- thetas[1]
+nu_true <- .00001
 Cx_true <- .5
 Cy_true <- .5
+theta_space <- 2*pi/p_true
+theta1_true <- theta_space/2
+thetas_true <- seq(theta1_true, 2*pi, by = theta_space)
 
 #simulate observations
 n_obs <- 25
-obs <- gen_conts_simp(n_sim = n_obs, mu = mu_true, kappa = kappa_true,
-                      sigma = sigma_true, Cx = Cx_true, Cy = Cy_true,
-                      theta1 = theta1)
+obs <- gen_conts(n_sim = n_obs, mu = mu_true, kappa = kappa_true, 
+                 sigma = sigma_true, nu = nu_true, Cx = Cx_true, Cy = Cy_true,
+                 theta1 = theta1_true)
+
 #pdf("Figures/test_sampler/test_sampler_obs.pdf")
 plot(0, 0, xlim = c(0, 1), ylim = c(0, 1), xlab = "", ylab = "", col = 'white',
      main = "Observed Contours")
@@ -45,6 +47,8 @@ for (i in 2:n_obs) {
 mu0 <-  rep(.15, p_true); Lambda0 <- .05*diag(p_true) 
 betaKappa0 <- 100
 betaSigma0 <- .1
+betaNu0 <- .1
+muC0 <- .2; sigmaC0 <- .01
 
 #find observed intersection kernel
 for (i in 1:n_obs) {
@@ -57,35 +61,39 @@ for (i in 1:n_obs) {
 }
 kern_pts <- t(kern@polygons[[1]]@Polygons[[1]]@coords)
 
-#find optimal signal
-C_ini <- gCentroid(kern)@coords
-C_optim <- optim(par = C_ini, fn = minW, x = obs$coords, theta = thetas)$par
-
 #initial values
-temp <- XToWY(C = C_optim, x = obs$coords, thetas)
+C_ini <- gCentroid(kern)@coords
+theta_space <- 2*pi/p_true
+theta1_ini <- theta_space/2
+thetas_ini <- seq(theta1_true, 2*pi, by = theta_space)
+temp <- XToWY(Cx = C_ini[1], Cy = C_ini[2], x = obs$coords, thetas_ini)
 mu_ini <- rep(mean(apply(temp$y, 1, mean)), p_true) 
-kappa_ini = 5;
+kappa_ini = 5
 sigma_ini <-  rep(mean(apply(temp$y, 1, sd)), p_true)
+nu_ini <- .000001
 
 #non-scaler proposals
-theta_dist <- compThetaDist(p_true, theta_space)
-sigmaPropCov = .005*compSigma(sigma_ini, kappa_ini, theta_dist)
-muPropCov <- .001*compSigma(sigma_ini, kappa_ini, theta_dist)
+theta_dist_ini <- compThetaDist(p_true, theta_space)
+sigmaPropCov = .005*compSigma(sigma_ini, kappa_ini, theta_dist_ini)
+muPropCov <- .001*compSigma(sigma_ini, kappa_ini, theta_dist_ini)
 
 #Fixed simulation info 
-n_iter <- 50000
-burn_in <- 30000
+n_iter <- 5000
+burn_in <- 3000
 g_space <- 1
 g_start <- seq(1, p_true, by = g_space)
 g_end <- c(seq(g_space, p_true, by = g_space), p_true)
 
-#fit model
 fits <- RunMCMC(nIter = n_iter, x = obs$coords,
                 mu = mu_ini, mu0, Lambda0, muPropCov,
                 kappa = kappa_ini, betaKappa0, kappaPropSD = .05,
                 sigma = sigma_ini, betaSigma0, sigmaPropCov,
+                nu = nu_ini, betaNu0, nuPropSD = .1,
+                Cx = C_ini[1], Cy = C_ini[2], muC0, sigmaC0,
+                CxPropSD = .001, CyPropSD = .001, 
+                theta1 = theta1_ini, theta1PropSD = .001,
                 gStart = g_start - 1, gEnd = g_end - 1,
-                theta1 = theta1, C = C_optim)
+                kernHat = kern_pts)
 
 #parameter estimates
 mu_est <- apply(fits$mu[,(burn_in + 1):n_iter], 1, mean)
@@ -130,6 +138,25 @@ plot(fits$kappa, type = "l")
 abline(h = kappa_true, col = 'red')
 fits$kappaRate
 
+#nu evaluation
+plot(fits$nu, type= "l", xlab = "Iteration",  ylab = expression(nu))
+abline(h = nu_true, col = 'red')
+legend("topright", fill = "red", legend = "True parameter value")
+
+#Cx evaluation
+plot(fits$Cx, type= "l", xlab = "Iteration")
+abline(h = Cx_true, col = 'red')
+legend("topright", fill = "red", legend = "True parameter value")
+
+#Cy evaluation
+plot(fits$Cy, type= "l", xlab = "Iteration")
+abline(h = Cy_true, col = 'red')
+legend("topright", fill = "red", legend = "True parameter value")
+
+#theta1 evaluation
+plot(fits$theta1, type= "l", xlab = "Iteration")
+abline(h = theta1_true, col = 'red')
+legend("topright", fill = "red", legend = "True parameter value")
 
 #posterior field
 n_gen <- 200
