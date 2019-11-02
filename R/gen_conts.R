@@ -6,6 +6,7 @@
 #' @param Cx parameter \eqn{Cx} in model
 #' @param Cy parameter \eqn{Cy} in model
 #' @param theta1 angle of first line
+#' @export
 gen_conts <- function(n_sim, mu, kappa, sigma, Cx, Cy, theta1) {
   #preliminary
   p <- length(mu)

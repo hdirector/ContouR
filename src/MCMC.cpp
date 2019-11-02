@@ -177,7 +177,7 @@ List XToWY(arma::vec Cx, arma::vec Cy, arma::cube x,  arma::vec theta) {
   return(wy);
 }
 
-//compute distances between angles
+//' compute distances between angles
 //[[Rcpp::export]]
 arma::mat compThetaDist(int n, double space) {
   arma::mat thetaDist = arma::zeros(n, n);
@@ -212,14 +212,14 @@ arma::mat compSigma(arma::vec sigma, arma::vec kappa, arma::mat thetaDist) {
   return(Sigma);
 }
 
-//main function
-//[[Rcpp::export]]
+//' main function
+// [[Rcpp::export]]
 List RunMCMC(int nIter, arma::cube x,
              arma::vec mu, arma::vec mu0, arma::mat Lambda0, arma::mat muPropCov,
              arma::vec kappa,  double betaKappa0, arma::vec kappaPropSD,
              arma::vec sigma, double betaSigma0, arma::mat sigmaPropCov,
              arma::vec Cx, arma::vec Cy, arma::vec theta1,
-             arma::uvec gStart, arma::uvec gEnd, arma::mat kernHat) {
+             arma::uvec gStart, arma::uvec gEnd) {
   
   //constants
   double pi = 3.14159;

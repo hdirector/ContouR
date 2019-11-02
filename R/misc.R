@@ -1,3 +1,11 @@
+#' @useDynLib PolygonKernels
+#' @importFrom Rcpp evalCpp
+#' @exportPattern "^[[:alpha:]]+"
+NULL
+
+#' Convert polygon to grid
+#' @export
+#' @importFrom raster raster rasterize as.matrix
 conv_to_grid <- function (x, nrows = 100, ncols = 100, xmn = 0, xmx = 1,
                           ymn = 0, ymx = 1) {
   rast <- raster(nrows = nrows, ncols = ncols, xmn = xmn, xmx = xmx, 
@@ -46,20 +54,18 @@ poly_to_gridded_line <- function(poly, nrows, ncols) {
   return(regrid_line)
 }
 
-#' Find interesction between a \code{SpatialLine} and the polygons and lines
-#' in a \code{SpatialCollections} object
-#' @param line \code{SpatialLines} object
-#' @param coll \code{SpatialCollections} or \code{SpatialPolygons object}
-line_inter_coll <- function(line, coll) {
-  if (is(coll)[1] == "SpatialPolygons") {
-    return(gIntersection(coll, line))
+#' keep only lines from spatial collections object
+#' @param coll \code{SpatialCollections} object
+coll_to_lines <- function(coll, ID = "line") {
+  if (is(coll)[[1]] == "SpatialLines") {
+    return(aggregate(coll))
+  } else if (is(coll)[1] == "SpatialPoints") {
+    line <- aggregate(SpatialLines(list(Lines(Line(matrix(c(0,0), ncol = 2)),
+                                    ID = ID))))
+    line@lines[[1]]@ID <- ID
   } else {
-    inter1 <- gIntersection(coll@lineobj, line)
-    inter1@lines[[1]]@ID <- "line"
-    inter2 <- gIntersection(coll@polyobj, line)
-    inter <- aggregate(spRbind(inter1, inter2))
-    return(inter)
-  }
+    return(aggregate(coll@lineobj))
+  } 
 }
 
 
@@ -96,7 +102,8 @@ dist_mat_circle <- function(n) {
 #' @param polys list of contours as polygon objects
 #' @param nrows number of rows in grid, defaults to 100
 #' @param ncols number of columns in grid, defaults to 100
-prob_field <- function(polys, nrows = 100, ncols = 100) {
+#' @export
+prob_field <- function(polys, nrows, ncols) {
   n_sim <- length(polys)
   sim_grid <- lapply(polys, function(x){conv_to_grid(x, nrows = nrows, 
                                                          ncols = ncols, xmn = 0, 
@@ -116,3 +123,45 @@ minW <- function(C, x, theta) {
   temp <- XToWY(C, x, theta) 
   return(max(sqrt(temp$wSq)))
 }
+
+
+#' Calculate angle from center point C to set of coordinates
+#' @param C vector of length 2 giving x and y coordinates of point C
+#' @param coords 2 x n matrix giving a set of coordinates
+calc_angs <- function(C, coords) {
+  angs <- apply(coords, 2, function(x){atan2(x[2] - C[2], x[1] - C[1])})
+  angs[angs < 0] <- 2*pi - abs(angs[angs < 0])
+  return(angs)
+}
+
+#' Sum of the variance 
+#' @param C vector of length 2 giving x and y coordinates of point C
+#' @param coords 2 x n matrix giving a set of coordinates
+angs_var <- function(C, coords) {
+  angs <- apply(coords, 3, function(x){calc_angs(C, x)})
+  sum_var_all <- sum(apply(angs, 2, function(x){var(diff(x))}))
+  return(sum_var_all)
+}
+
+#' find estimated center point
+#' @param obs_coords array giving the coordinates of the observations, 
+#' dimension of 2 x number of points x number of samples
+#' @export
+find_center <- function(obs_coords) {
+  kern <- find_inter_kernel(obs$coords)
+  #grid of test points within intersection kernel 
+  grid_pts <- expand.grid(seq(0, 1, length = 100), seq(0, 1, length = 100))
+  grid_sp_pts <- SpatialPoints(grid_pts)
+  grid_test <- grid_pts[gIntersects(grid_sp_pts, kern$poly, byid = T),]
+  
+  #find test point which minimizes variance of the angles
+  res <- apply(grid_test, 1, function(x){angs_var(C = x, 
+                                                  coords = obs_coords)})
+  init_C <- grid_test[which.min(res),]
+  
+  #find exact value which minimizes variance, begin search at best test point  
+  opt_C <- optim(par = init_C, fn = angs_var, coords = obs_coords)
+  C_est <- opt_C$par
+  return(C_est)
+}
+

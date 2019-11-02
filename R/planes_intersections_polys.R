@@ -1,17 +1,13 @@
-library('sp')
-
 #' Function to make a \code{SpatialPolygons} object
 #' @param coords n x 2 matrix of coordinates with first column giving 
 #' x-coordinates and second column giving y-coordinates
 #' @param name character string giving name of polygon  
-#' @importFrom sp Polygon, Polygons, SpatialPolygons
+#' @importFrom sp  SpatialPolygons
 make_poly <- function(coords, name) {
   SpatialPolygons(list(Polygons(list(Polygon(coords)), name)))
 }
 
 #' Function to make a \code{SpatialLines} object
-#' @param coords n x 2 matrix of coordinates with first column giving 
-#' x-coordinates and second column giving y-coordinates
 #' @param p1 matrix of coordinates of points or vector of coordinates of first 
 #' point
 #' @param p2 vector of coordinates of second point; defaults to \code{NULL}
@@ -161,7 +157,7 @@ int_half_plane <- function(p1, p2, poly, box) {
 }
 
 #' Find the kernel of a star-shaped polygon
-#' @coords matrix of dimension n x 2 that gives the coordinates of the 
+#' @param coords matrix of dimension n x 2 that gives the coordinates of the 
 #' star-shaped polygon with the first column giving x-coordinates and the second
 #' column giving y-coordinates
 find_kernel <- function(coords) {
@@ -183,22 +179,22 @@ find_kernel <- function(coords) {
   return(kernel)
 }
 
-#' Find the shared kernel among a group of star-shaped polygons
-#' @param obs_coords list where each element is a n x 2 matrix giving the 
-#' coordinates of a star-shaped polygon
-#' @return \code{SpatialPolygons} object giving the shared kernel among
-#' the inputted polygons
-shared_kernel <- function(obs_coords) {
-  n_obs <- length(obs_coords)
+#' Find the observed intersection kernel of a set of contours
+#' @param obs_coords array giving the coordinates of the observations, 
+#' dimension of 2 x number of points x number of samples
+#' @export
+find_inter_kernel <- function(obs_coords) {
+  n_obs <- dim(obs_coords)[3]
   for (i in 1:n_obs) {
-    kernel_i <- find_kernel(obs_coords[[i]])
+    kern_curr <- find_kernel(rbind(t(obs_coords[,,i]), t(obs_coords[,1,i])))
     if (i == 1) {
-      kernel <- kernel_i
+      kern <- kern_curr
     } else {
-      kernel <- gIntersection(kernel, kernel_i)
+      kern <- gIntersection(kern, kern_curr)
     }
   }
-  return(kernel)
+  kern_pts <- t(kern@polygons[[1]]@Polygons[[1]]@coords)
+  return(list("coords" = kern_pts, "poly" = kern))
 }
 
 
@@ -225,7 +221,7 @@ fixed_lines <- function(center, n_lines,
 #' @param obs \code{SpatialPolygons} object giving the observed polygon
 #' @param lines a list of the fixed lines where each line is represented as
 #' a \code{SpatialLines} object
-#' @param center
+#' @param center coordinates of center point 
 length_on_fixed <- function(obs, lines, center) {
   obs_line <- as(obs, "SpatialLines")
   n_lines <- length(lines)
@@ -245,7 +241,6 @@ length_on_fixed <- function(obs, lines, center) {
 }
 
 
-
 #' Find distance between two points
 #' @param p1 coordinates of point 1
 #' @param p2 coordinates of point 2
@@ -254,7 +249,37 @@ get_dist <- function(p1, p2) {
 }
   
 
-  
+#' Compute the \eqn{p} points parallel to the generating line
+#' @param poly \code{SpatialPolygons} object 
+#' @param p number of generating lines
+#' @param center vector of x and y coordinate of center point
+#' @param r max length line could extend
+paral_pts <- function(p, poly, center, r = 10) {
+  line <- as(poly, "SpatialLines")
+  theta_space <- 2*pi/p
+  theta <- seq(theta_space/2, 2*pi, by = theta_space)
+  outer_pts <- cbind(center[1] + r*cos(theta), center[2] + r*sin(theta))
+  gen_lines <- apply(outer_pts, 1, function(x){make_line(p1 = rbind(x, center), 
+                                                  name =  "spoke")})
+  pts <- sapply(gen_lines, function(x){gIntersection(x, line)})
+  pts <- sapply(pts, function(x){x@coords})
+  return(pts)
+}
+
+#' Compute lengths of lines from a point C to the edge of a polygon
+#' @param p number of lines
+#' @param poly \code{SpatialPolygons} object 
+#' @param center vector of length 2 giving points of C
+#' @param r maximum radius to consider
+#' @export
+paral_lengths <- function(p, poly, C, r = 10) {
+  theta_space <- 2*pi/p
+  thetas <- seq(theta_space/2, 2*pi, by = theta_space)
+  outer <- cbind(C[1] + r*cos(thetas), C[2] + r*sin(thetas))
+  lines <- apply(outer, 1, function(x){make_line(x, C, "ID")})
+  mu <- sapply(lines, function(x){SpatialLinesLengths(gIntersection(poly, x))})
+  return(mu)
+} 
   
   
   
