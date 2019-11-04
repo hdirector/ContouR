@@ -1,4 +1,4 @@
-#' @useDynLib PolygonKernels
+#' @useDynLib ContouR
 #' @importFrom Rcpp evalCpp
 #' @exportPattern "^[[:alpha:]]+"
 NULL
