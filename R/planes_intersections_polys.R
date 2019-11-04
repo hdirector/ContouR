@@ -11,7 +11,7 @@ make_poly <- function(coords, name) {
 #' @param p1 matrix of coordinates of points or vector of coordinates of first 
 #' point
 #' @param p2 vector of coordinates of second point; defaults to \code{NULL}
-#' @importFrom sp  SpatialLines
+#' @importFrom sp  SpatialLines Lines Line
 make_line <- function(p1, p2 = NULL, name) {
   if (!is.null(p2)) {
     SpatialLines(list(Lines(Line(rbind(p1, p2)), name)))
@@ -46,7 +46,7 @@ bbox <- function() {
 #' make the plane
 #' @importFrom rgeos gDifference
 int_half_plane <- function(p1, p2, poly, box) {
-  eps <- .001 #distance from 
+  eps <- .001 #how close do values need to be to horizontal or vertical 
   ###vertical line
   if (p1[1] == p2[1]) {
     half_plane <- make_poly(rbind(c(p1[1], 0), c(p1[1], 1), c(1, 1), c(1, 0)), 
@@ -173,11 +173,14 @@ find_kernel <- function(coords) {
   for (i in 1:(n_pts - 1)) {
     temp_half_plane <- int_half_plane(p1 = coords[i,], p2 = coords[i + 1,], 
                                       poly = poly_curr, box = bb)
-    kernel <- gIntersection(kernel, temp_half_plane)
+    kernel <- keep_poly(gIntersection(kernel, temp_half_plane))
+    
     if (is.null(kernel)) {return(NULL)}
   }
   return(kernel)
 }
+  
+
 
 #' Find the observed intersection kernel of a set of contours
 #' @param obs_coords array giving the coordinates of the observations, 
@@ -186,7 +189,8 @@ find_kernel <- function(coords) {
 find_inter_kernel <- function(obs_coords) {
   n_obs <- dim(obs_coords)[3]
   for (i in 1:n_obs) {
-    kern_curr <- find_kernel(rbind(t(obs_coords[,,i]), t(obs_coords[,1,i])))
+     kern_curr <- find_kernel(coords = rbind(t(obs_coords[,,i]),
+                                             t(obs_coords[,1,i])))
     if (i == 1) {
       kern <- kern_curr
     } else {
@@ -283,7 +287,15 @@ paral_lengths <- function(p, poly, C, r = 10) {
   
   
   
-  
+#' Keep only the polygon from a \code{SpatialCollections} object
+#' @param poly \code{SpatialPolygons} or \code{SpatialCollections} object
+keep_poly <- function(poly) {
+  if (is(poly)[1] == "SpatialPolygons") {
+    return(poly)
+  } else if (is(poly)[1] == "SpatialCollections") {
+    return(poly@polyobj)
+  }
+} 
   
   
   
