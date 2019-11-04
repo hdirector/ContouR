@@ -148,7 +148,7 @@ angs_var <- function(C, coords) {
 #' dimension of 2 x number of points x number of samples
 #' @export
 find_center <- function(obs_coords) {
-  kern <- find_inter_kernel(obs_coords)
+  kern <- find_inter_kernel(obs_coords = obs_coords)
   stopifnot(!is.null(kern$poly))
   #grid of test points within intersection kernel, also adding centroid of kernel
   #in case original space is very small
