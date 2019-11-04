@@ -9,7 +9,7 @@ cred_regs <- function(prob, cred_eval, nrows, ncols) {
   in_int <- array(dim = c(n_cred_eval, nrows, ncol = ncols), data = 0)
   p_bd <- (100 - cred_eval)/100/2
   for (j in 1:length(cred_eval)) {
-    cred_regs[[j]] <- conv_to_poly((prob >= p_bd[j]) & (prob <= (1 - p_bd[j])))
+    cred_regs[[j]] <- conv_to_poly((prob > p_bd[j]) & (prob < (1 - p_bd[j])))
   }
   return(cred_regs)
 }
@@ -24,6 +24,9 @@ cred_regs <- function(prob, cred_eval, nrows, ncols) {
 #' @param r maximum radius to make test lines
 #' @param plotting boolean indicating if plots should be made
 #' @return vector of booleans indicating if crossing was in the credible interval
+#' @importFrom rgeos gIntersects
+#' @importFrom sp SpatialLines
+#' @export
 eval_cred_reg <- function(truth, cred_reg, center, p_test, r = 5, 
                           plotting = FALSE) {
   #convert poly to line
@@ -59,6 +62,7 @@ eval_cred_reg <- function(truth, cred_reg, center, p_test, r = 5,
 #' Find intersection between line and a Spatial Collections object
 #' @param coll \code{SpatialCollections} object
 #' @param line \code{SpatialLines} object
+#' @importFrom  rgeos gIntersection
 inter_coll <- function(coll, line) {
   type_name <- is(coll)[1]
   if (type_name == "SpatialPolygons") {
