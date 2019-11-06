@@ -47,5 +47,6 @@ theta_dist_mat <- function(thetas) {
       dist_mat[i,j] <- ang_dist(thetas[i], thetas[j])
     }
   }
+  return(dist_mat)
 }
 
