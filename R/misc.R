@@ -143,29 +143,28 @@ angs_var <- function(C, coords) {
   return(sum_var_all)
 }
 
-#' find estimated center point
-#' @param obs_coords array giving the coordinates of the observations, 
-#' dimension of 2 x number of points x number of samples
-#' @export
-find_center <- function(obs_coords) {
-  kern <- find_inter_kernel(obs_coords = obs_coords)
-  stopifnot(!is.null(kern$poly))
-  #grid of test points within intersection kernel, also adding centroid of kernel
-  #in case original space is very small
-  grid_pts <- expand.grid(seq(0, 1, length = 100), seq(0, 1, length = 100))
-  colnames(grid_pts) <- c("x", "y")
-  grid_pts <- rbind(grid_pts, gCentroid(kern$poly)@coords)
-  grid_sp_pts <- SpatialPoints(grid_pts)
-  grid_test <- grid_pts[gIntersects(grid_sp_pts, kern$poly, byid = T),]
+#' Find the center point based on at least two observations
+#' @param coords array of coordinates of dimensions 2 x number of points x
+#' number of samples
+find_center <- function(coords) {
+  stopifnot(dim(coords)[3] >= 2)
+  #make first line
+  p1a <- coords[,1,1]
+  p1b <- coords[,1,2]
+  m1 <- (p1a[2] - p1b[2])/(p1a[1] - p1b[1])
+  b1 <- p1a[2] - m1*p1a[1]
   
-  #find test point which minimizes variance of the angles
-  res <- apply(grid_test, 1, function(x){angs_var(C = x, 
-                                                  coords = obs_coords)})
-  init_C <- grid_test[which.min(res),]
+  #make second line
+  p2a <- coords[,2,1]
+  p2b <- coords[,2,2]
+  m2 <- (p2a[2] - p2b[2])/(p2a[1] - p2b[1])
+  b2 <- p2a[2] - m2*p2a[1]
   
-  #find exact value which minimizes variance, begin search at best test point  
-  opt_C <- optim(par = init_C, fn = angs_var, coords = obs_coords)
-  C_est <- opt_C$par
-  return(C_est)
+  #find intersection
+  x_inter <- (b2 - b1)/(m1 - m2)
+  y_inter <- m1*x_inter + b1
+  
+  return(c(x_inter, y_inter))
 }
+  
 
