@@ -5,15 +5,12 @@
 #' @param sigma parameter \eqn{sigma} in model
 #' @param Cx parameter \eqn{Cx} in model
 #' @param Cy parameter \eqn{Cy} in model
-#' @param theta1 angle of first line
+#' @param thetas list of angles to generate lines on 
 #' @export
-gen_conts <- function(n_sim, mu, kappa, sigma, Cx, Cy, theta1) {
+gen_conts <- function(n_sim, mu, kappa, sigma, Cx, Cy, thetas) {
   #preliminary
   p <- length(mu)
-  theta_space <- 2*pi/p
-  theta_spacing <- theta_space*(0:(p-1))
-  thetas <- theta1 + theta_spacing
-  theta_dist <- compThetaDist(p, theta_space)
+  theta_dist <- theta_dist_mat(thetas)
   Sigma <- compSigma(sigma, kappa, theta_dist)
   
   #Simulate parallel points
