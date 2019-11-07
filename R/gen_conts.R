@@ -15,7 +15,7 @@ gen_conts <- function(n_sim, mu, kappa, sigma, Cx, Cy, thetas) {
   
   #Simulate parallel points
   y_sim <-  matrix(t(mvrnorm(n_sim, mu, Sigma)), ncol = n_sim)
-  y_sim[y_sim < 0] <- 0 #no negative lengths
+  y_sim[y_sim < 0] <- 1e-5 #no negative lengths
   coords <- array(dim = c(2, p, n_sim))
   coords[1,,] <- y_sim*cos(thetas) + Cx
   coords[2,,] <- y_sim*sin(thetas) + Cy
