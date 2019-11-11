@@ -6,10 +6,11 @@
 cred_regs <- function(prob, cred_eval, nrows, ncols) {
   cred_regs <- list()
   n_cred_eval <- length(cred_eval)
-  in_int <- array(dim = c(n_cred_eval, nrows, ncol = ncols), data = 0)
   p_bd <- (100 - cred_eval)/100/2
   for (j in 1:length(cred_eval)) {
-    cred_regs[[j]] <- conv_to_poly((prob > p_bd[j]) & (prob < (1 - p_bd[j])))
+    above_lb <- conv_to_poly(prob > p_bd[j])
+    below_ub <- conv_to_poly(prob < (1 - p_bd[j]))
+    cred_regs[[j]] <- gIntersection(below_ub, above_lb)
   }
   return(cred_regs)
 }
@@ -44,6 +45,7 @@ eval_cred_reg <- function(truth, cred_reg, center, p_test, r = 5,
   for (i in 1:p_test) {
     test_line <- make_line(p1 = center, p2 = c(x[i], y[i]), "test")
     test_line <- inter_coll(cred_reg, test_line)
+    stopifnot(!is.null(test_line))
     if (gIntersects(truth, test_line)) {
       cover[i] <- TRUE
     }

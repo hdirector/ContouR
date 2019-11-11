@@ -214,41 +214,27 @@ arma::mat compSigma(arma::vec sigma, arma::vec kappa, arma::mat thetaDist) {
 
 //' main function
 // [[Rcpp::export]]
-List RunMCMC(int nIter, arma::cube x,
+List RunMCMC(int nIter, arma::mat y,
              arma::vec mu, arma::vec mu0, arma::mat Lambda0, arma::mat muPropCov,
              arma::vec kappa,  double betaKappa0, arma::vec kappaPropSD,
              arma::vec sigma, double betaSigma0, arma::mat sigmaPropCov,
-             arma::vec Cx, arma::vec Cy, arma::vec theta1,
-             arma::uvec gStart, arma::uvec gEnd) {
+             arma::uvec gStart, arma::uvec gEnd, arma::mat thetaDist) {
   
   //constants
-  double pi = 3.14159;
-  int n = x.n_slices;
+  int n = y.n_cols;
   int p = mu.size();
   int nGroup = gStart.size();
   
-  //compute theta info
-  double thetaSpace = 2*pi/p;
-  arma::vec seq = arma::linspace(0, p - 1, p);
-  arma::vec theta = theta1(0) + seq*thetaSpace;
-  
   //computed matrices
-  arma::mat thetaDist = compThetaDist(p, thetaSpace);
   arma::mat Sigma = compSigma(sigma, kappa, thetaDist);
   arma::mat SigmaInv = inv(Sigma);
   arma::mat Lambda0Inv = inv(Lambda0);
   
-  //convert data to other forms
-  List temp = XToWY(Cx, Cy, x, theta);
-  arma::mat y = temp["y"];
-  arma::mat wSq = temp["wSq"];
-  //double wSqSum = arma::accu(wSq);
   
   //storage vectors and matrices
   arma::mat muStore = arma::zeros(p, nIter);
   arma::vec kappaStore = arma::zeros(nIter);
   arma::mat sigmaStore = arma::zeros(p, nIter);
-
   
   //acceptance rates
   arma::vec muRate = arma::zeros(nGroup);
@@ -272,13 +258,13 @@ List RunMCMC(int nIter, arma::cube x,
         arma::vec muProp = mu;
         muProp(gInd) = muGProp;
         logR = (-.5*sumQFCentSq(y, muProp, SigmaInv)
-                  -.5*sumQFCentSq(muProp, mu0, Lambda0Inv)
-                  +.5*sumQFCentSq(y, mu, SigmaInv)
-                  +.5*sumQFCentSq(mu, mu0, Lambda0Inv));
-                  if (logAccept(logR)) {
-                    mu = muProp;
-                    muRate(g) = muRate(g) + 1;
-                  }
+                -.5*sumQFCentSq(muProp, mu0, Lambda0Inv)
+                +.5*sumQFCentSq(y, mu, SigmaInv)
+                +.5*sumQFCentSq(mu, mu0, Lambda0Inv));
+        if (logAccept(logR)) {
+          mu = muProp;
+          muRate(g) = muRate(g) + 1;
+        }
       }
     }
     muStore.col(i) = mu;
@@ -289,7 +275,7 @@ List RunMCMC(int nIter, arma::cube x,
     SigmaInvProp = inv(SigmaProp);
     if ((kappaProp(0) >= 0) & (kappaProp(0) <= betaKappa0)) {
       logR = (-(n/2)*logDet(SigmaProp) -.5*sumQFCentSq(y, mu, SigmaInvProp)
-                +(n/2)*logDet(Sigma) +.5*sumQFCentSq(y, mu, SigmaInv));
+              +(n/2)*logDet(Sigma) +.5*sumQFCentSq(y, mu, SigmaInv));
       if (logAccept(logR)) {
         kappa = kappaProp;
         kappaRate++;
