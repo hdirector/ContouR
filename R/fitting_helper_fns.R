@@ -52,22 +52,37 @@ theta_dist_mat <- function(thetas) {
 
 #' rescale a set of coordinates to be in the box [0, 1] x [0, 1] with some 
 #' buffer space
-#' @param coords matrix of coordinates to rescale
+#' @param coords list of sets of matrix of coordinates to rescale together
 #' @param eps how much buffer space to leave with bounds of box
-rescale <- function(coords, eps) {
+#' @param grid matrix of grid points that should be rescaled and
+#' extraneous points removed 
+rescale <- function(coords, eps, grid = NULL) {
+  #need a reasonable buffer length
+  stopifnot(eps < .5)
+  
   #x range
-  xmx <- max(coords[,1])
-  xmn <- min(coords[,1]) 
+  xmx <- max(sapply(coords, function(x){max(x[,1])}))
+  xmn <- min(sapply(coords, function(x){min(x[,1])})) 
   x_delta <- xmx - xmn 
   
   #y-range
-  ymx <- max(coords[,2])
-  ymn <- min(coords[,2]) 
+  ymx <- max(sapply(coords, function(x){max(x[,2])}))
+  ymn <- min(sapply(coords, function(x){min(x[,2])})) 
   y_delta <- ymx - ymn 
   
   #rescale and shift
-  coords_scale <-  eps + (1 - 2*eps)*cbind((coords[,1] - xmn)/x_delta,
-                                            (coords[,2] - ymn)/y_delta)
-  return(coords_scale)
+  coords_scale <-  lapply(coords, function(x){
+                          eps + (1 - 2*eps)*cbind((x[,1] - xmn)/x_delta,
+                                                  (x[,2] - ymn)/y_delta)})
+  
+  if (!is.null(grid)) {
+    keep <- apply(grid, 1, function(x){(x[1] >= xmn) & (x[1] <= xmx) &
+                                       (x[2] >= ymn) & (x[2] <= ymx)})
+    grid_keep <- grid[keep,]
+    grid_scale <- eps + (1 - 2*eps)*cbind((grid_keep[,1] - xmn)/x_delta,
+                                          (grid_keep[,2] - ymn)/y_delta)
+  }
+
+  return(list("coords_scale" = coords_scale, "grid_scale" = grid_scale))
 } 
 
