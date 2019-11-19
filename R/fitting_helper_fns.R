@@ -50,3 +50,24 @@ theta_dist_mat <- function(thetas) {
   return(dist_mat)
 }
 
+#' rescale a set of coordinates to be in the box [0, 1] x [0, 1] with some 
+#' buffer space
+#' @param coords matrix of coordinates to rescale
+#' @param eps how much buffer space to leave with bounds of box
+rescale <- function(coords, eps) {
+  #x range
+  xmx <- max(coords[,1])
+  xmn <- min(coords[,1]) 
+  x_delta <- xmx - xmn 
+  
+  #y-range
+  ymx <- max(coords[,2])
+  ymn <- min(coords[,2]) 
+  y_delta <- ymx - ymn 
+  
+  #rescale and shift
+  coords_scale <-  eps + (1 - 2*eps)*cbind((coords[,1] - xmn)/x_delta,
+                                            (coords[,2] - ymn)/y_delta)
+  return(coords_scale)
+} 
+
