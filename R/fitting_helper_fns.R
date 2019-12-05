@@ -74,15 +74,25 @@ rescale <- function(coords, eps, grid = NULL) {
   coords_scale <-  lapply(coords, function(x){
                           eps + (1 - 2*eps)*cbind((x[,1] - xmn)/x_delta,
                                                   (x[,2] - ymn)/y_delta)})
-  
-  if (!is.null(grid)) {
+  if (is.null(grid)) {
+    return(list("coords_scale" = coords_scale))
+  } else {
     keep <- apply(grid, 1, function(x){(x[1] >= xmn) & (x[1] <= xmx) &
                                        (x[2] >= ymn) & (x[2] <= ymx)})
     grid_keep <- grid[keep,]
     grid_scale <- eps + (1 - 2*eps)*cbind((grid_keep[,1] - xmn)/x_delta,
                                           (grid_keep[,2] - ymn)/y_delta)
+    return(list("coords_scale" = coords_scale, "grid_scale" = grid_scale))
   }
-
-  return(list("coords_scale" = coords_scale, "grid_scale" = grid_scale))
+ 
 } 
+
+#' Compute points on lines l and contour boundary
+#' @param l list of \code{SpatialLines} on which to map l
+#' @param cont list of \code{SpatialPolygons} giving the contours
+pts_on_l <- function(l, cont) {
+  on_l <- lapply(l, function(x){gIntersection(x, cont)})
+  pts_on_l <- t(sapply(on_l, function(x){x@lines[[1]]@Lines[[1]]@coords[2,]}))
+  return(pts_on_l)
+}
 
