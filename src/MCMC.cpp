@@ -196,15 +196,15 @@ arma::mat compThetaDist(int n, double space) {
   return(thetaDist);
 }
 
-
 //Compute Sigma based on sigma and kappa
 //[[Rcpp::export]]
-arma::mat compSigma(arma::vec sigma, arma::vec kappa, arma::mat thetaDist) {
+arma::mat compSigma(arma::vec sigma, arma::vec kappa, arma::vec alpha,
+                    arma::mat thetaDist) {
   int n = sigma.size();
   arma::mat Sigma = arma::zeros(n, n);
   for (unsigned i = 0; i < n; i++) {
     for (unsigned j = 0; j <= i; j++) {
-      arma::vec temp = sigma(i)*sigma(j)*exp(-thetaDist(i, j)/kappa);
+      arma::vec temp = sigma(i)*sigma(j)*exp(-pow(thetaDist(i, j)/kappa, alpha(0)));
       Sigma(i, j) = temp(0);
       Sigma(j, i) = temp(0);
     }
@@ -212,13 +212,19 @@ arma::mat compSigma(arma::vec sigma, arma::vec kappa, arma::mat thetaDist) {
   return(Sigma);
 }
 
+
+
+
+
 //' main function
 // [[Rcpp::export]]
 List RunMCMC(int nIter, arma::mat y,
              arma::vec mu, arma::vec mu0, arma::mat Lambda0, arma::mat muPropCov,
              arma::vec kappa,  double betaKappa0, arma::vec kappaPropSD,
-             arma::vec sigma, double betaSigma0, arma::mat sigmaPropCov,
-             arma::uvec gStart, arma::uvec gEnd, arma::mat thetaDist) {
+             arma::vec sigma, arma::vec betaSigma0, arma::mat sigmaPropCov,
+             arma::uvec gStart, arma::uvec gEnd, arma::mat thetaDist,
+             arma::vec alpha, double alphaPropSD, double alphaAlpha0, 
+             double betaAlpha0) {
   
   //constants
   int n = y.n_cols;
@@ -226,20 +232,21 @@ List RunMCMC(int nIter, arma::mat y,
   int nGroup = gStart.size();
   
   //computed matrices
-  arma::mat Sigma = compSigma(sigma, kappa, thetaDist);
+  arma::mat Sigma = compSigma(sigma, kappa, alpha, thetaDist);
   arma::mat SigmaInv = inv(Sigma);
   arma::mat Lambda0Inv = inv(Lambda0);
-  
   
   //storage vectors and matrices
   arma::mat muStore = arma::zeros(p, nIter);
   arma::vec kappaStore = arma::zeros(nIter);
   arma::mat sigmaStore = arma::zeros(p, nIter);
+  arma::vec alphaStore = arma::zeros(nIter);
   
   //acceptance rates
   arma::vec muRate = arma::zeros(nGroup);
   double kappaRate = 0.0;
   arma::vec sigmaRate = arma::zeros(nGroup);
+  double alphaRate = 0.0;
 
   //functional parameters
   arma::mat SigmaProp(p, p);
@@ -271,7 +278,7 @@ List RunMCMC(int nIter, arma::mat y,
     
     ////////////////update kappa/////////////////
     arma::vec kappaProp =  kappaPropSD*arma::randn(1) + kappa(0);
-    SigmaProp = compSigma(sigma, kappaProp, thetaDist);
+    SigmaProp = compSigma(sigma, kappaProp, alpha, thetaDist);
     SigmaInvProp = inv(SigmaProp);
     if ((kappaProp(0) >= 0) & (kappaProp(0) <= betaKappa0)) {
       logR = (-(n/2)*logDet(SigmaProp) -.5*sumQFCentSq(y, mu, SigmaInvProp)
@@ -290,13 +297,13 @@ List RunMCMC(int nIter, arma::mat y,
       arma::uvec gInd = arma::linspace<arma::uvec>(gStart(g), gEnd(g),
                                                    gEnd(g) - gStart(g) + 1);
       arma::vec gProp = mvrnormCpp(sigma(gInd), sigmaPropCov(gInd, gInd));
-      if (all(gProp >= 0) && all(gProp < betaSigma0)) {
+      if(all(gProp > 0) && all(gProp < betaSigma0(gInd))) {
         arma::vec sigmaGProp = sigma;
         sigmaGProp(gInd) = gProp;
-        arma::mat SigmaGProp = compSigma(sigmaGProp, kappa, thetaDist);
+        arma::mat SigmaGProp = compSigma(sigmaGProp, kappa, alpha, thetaDist);
         arma::mat SigmaGInvProp = inv(SigmaGProp);
         logR = (-(n/2)*logDet(SigmaGProp) -.5*sumQFCentSq(y, mu, SigmaGInvProp)
-                  +(n/2)*logDet(Sigma) +.5*sumQFCentSq(y, mu, SigmaInv));
+                +(n/2)*logDet(Sigma) +.5*sumQFCentSq(y, mu, SigmaInv));
         if (logAccept(logR)) {
           sigma = sigmaGProp;
           Sigma = SigmaGProp;
@@ -306,6 +313,22 @@ List RunMCMC(int nIter, arma::mat y,
       }
     }
     sigmaStore.col(i) = sigma;
+    
+    ////////////////update alpha////////////////
+    arma::vec alphaProp =  alphaPropSD*arma::randn(1) + alpha(0);
+    SigmaProp = compSigma(sigma, kappaProp, alphaProp, thetaDist);
+    SigmaInvProp = inv(SigmaProp);
+    if ((alphaProp(0) >= alphaAlpha0) & (alphaProp(0) <= betaAlpha0)) {
+      logR = (-(n/2)*logDet(SigmaProp) -.5*sumQFCentSq(y, mu, SigmaInvProp)
+                +(n/2)*logDet(Sigma) +.5*sumQFCentSq(y, mu, SigmaInv));
+      if (logAccept(logR)) {
+        alpha = alphaProp;
+        alphaRate++;
+        Sigma = SigmaProp;
+        SigmaInv = SigmaInvProp;
+      }
+    }
+    alphaStore(i) = alpha(0);
   }
   
   
@@ -313,12 +336,14 @@ List RunMCMC(int nIter, arma::mat y,
   muRate = muRate/nIter;
   kappaRate = kappaRate/nIter;
   sigmaRate = sigmaRate/nIter;
+  alphaRate = alphaRate/nIter;
 
   //return
   List res;
   res["mu"] = muStore; res["muRate"] = muRate;
   res["kappa"] = kappaStore; res["kappaRate"] = kappaRate;
   res["sigma"] = sigmaStore; res["sigmaRate"] = sigmaRate;
+  res["alpha"] = alphaStore; res["alphaRate"] = alphaRate;
 
   return(res);
 }
