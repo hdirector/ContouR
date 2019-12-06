@@ -87,6 +87,18 @@ rescale <- function(coords, eps, grid = NULL) {
  
 } 
 
+
+#' Make a set lines to map on l
+#' @param C center point
+#' @param theta angles of lines to make
+#' @param r length to extend lines
+make_l <- function(C, theta, r = 5) {
+  l_pts <- cbind(C[1] + r*cos(theta), C[2] + r*sin(theta))
+  l <- apply(l_pts, 1, function(x){make_line(C, x, "l")})
+  return(l)
+}
+
+
 #' Compute points on lines l and contour boundary
 #' @param l list of \code{SpatialLines} on which to map l
 #' @param cont list of \code{SpatialPolygons} giving the contours

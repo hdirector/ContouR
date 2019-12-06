@@ -29,9 +29,12 @@ quad_form <- function(a, b, c) {
   c((-b + sqrt((b^2) - 4*a*c))/(2*a),(-b - sqrt((b^2) - 4*a*c))/(2*a))
 }
 
-#' Function to make a bounding box normalized to have side lengths of 1
-bbox <- function() {
-  coords <- rbind(c(0, 0), c(0, 1), c(1, 1), c(1, 0))
+#' Function to make a bounding box normalized to have side lengths of 
+#' \eqn{1 - 2\epsilon}
+#' @param eps space from edge of [0, 1] box that should be kept blank
+bbox <- function(eps = 0) {
+  coords <- rbind(c(0 + eps, 0 + eps), c(0 + eps, 1 - eps), 
+                  c(1 - eps, 1 - eps), c(1 - eps, 0  + eps))
   name <- 'bbox'
   make_poly(coords, name)
 }
