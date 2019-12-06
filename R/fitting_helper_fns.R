@@ -102,9 +102,24 @@ make_l <- function(C, theta, r = 5) {
 #' Compute points on lines l and contour boundary
 #' @param l list of \code{SpatialLines} on which to map l
 #' @param cont list of \code{SpatialPolygons} giving the contours
-pts_on_l <- function(l, cont) {
+#' @param under boolean indicating approach if more than one point
+#' @details If \code{under = TRUE}, if there is more than one point on line l,
+#' than the closest point to the center point is recorded. Otherwise, the
+#' farthest point to the center point is recorded  
+pts_on_l <- function(l, cont, under) {
+  stopifnot(is.logical(under))
   on_l <- lapply(l, function(x){gIntersection(x, cont)})
-  pts_on_l <- t(sapply(on_l, function(x){x@lines[[1]]@Lines[[1]]@coords[2,]}))
+  n_l <- length(l)
+  if (under) { #find the second point of the first line (first point is center)
+    pts_on_l <- t(sapply(on_l, function(x){x@lines[[1]]@Lines[[1]]@coords[2,]}))
+  } else {
+    n_sub_l <- sapply(on_l, function(x){length(x@lines[[1]]@Lines)}) #number of lines
+    pts_on_l <- matrix(nrow = n_l, ncol = 2)
+    for (i in 1:n_l) {
+      #find the second point of the last line
+      pts_on_l[i,] <- on_l[[i]]@lines[[1]]@Lines[[n_sub_l[i]]]@coords[2,]
+    }
+  }
   return(pts_on_l)
 }
 
