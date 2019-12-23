@@ -135,21 +135,26 @@ pts_on_l <- function(l, cont, under) {
 #' Find center point that minimizes area in error
 #' @param C_poss matrix of dimension n x 2 that gives the n possible locations
 #' for C 
-#' @param train list of contours formatted as \code{SpatialPolygons} objects
+#' @param conts list of contours formatted as \code{SpatialPolygons} objects
 #' from which the model will be fit
 #' @param thetas the angles on which the lines will be specified
-best_C <- function(C_poss, train, thetas) {
+best_C <- function(C_poss, conts, thetas) {
   n_poss <- nrow(C_poss)
-  n_train <- length(train)
+  n_conts <- length(conts)
   #Compute areas in error (area_out)
-  area_out <- matrix(nrow = n_poss, ncol = n_train)
+  area_out <- matrix(nrow = n_poss, ncol = n_conts)
   for (i in 1:n_poss) {
     l <- make_l(C = C_poss[i,], theta = thetas)
-    for (j in 1:n_train) {
-      pts_on_l_j <- pts_on_l(l = l, cont = train[[j]], under = FALSE)
+    for (j in 1:n_conts) {
+      if (n_conts > 1) {
+        cont_j <- conts[[j]]
+      } else {
+        cont_j <- conts
+      }
+      pts_on_l_j <- pts_on_l(l = l, cont = cont_j, under = FALSE)
       poss_j <- make_poly(pts_on_l_j, "test_cont")
-      diff_reg1 <- gDifference(poss_j, train[[j]])
-      diff_reg2 <- gDifference(train[[j]], poss_j)
+      diff_reg1 <- gDifference(poss_j, cont_j)
+      diff_reg2 <- gDifference(cont_j, poss_j)
       area_out[i, j] <- gArea(diff_reg1) + gArea(diff_reg2)
     }
   }

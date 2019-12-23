@@ -20,7 +20,8 @@ gen_conts <- function(n_sim, mu, kappa, sigma, Cx, Cy, thetas) {
   coords[1,,] <- y_sim*cos(thetas) + Cx
   coords[2,,] <- y_sim*sin(thetas) + Cy
   
-  interp_new_pts(new_pts <- t(coords[,,1]), bd = bd_scale)
+  #interpolate along land
+  coords <- interp_new_pts(new_pts <- t(coords[,,1]), bd = bd_scale)
   
   #make polys
   polys <- apply(coords, 3, function(x){make_poly(cbind(x[1,], x[2,]), "sim")})
