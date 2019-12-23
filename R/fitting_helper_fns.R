@@ -1,26 +1,27 @@
-#' Find the center point based on at least two observations
-#' @param coords array of coordinates of dimensions 2 x number of points x
-#' number of samples
-find_center <- function(coords) {
-  stopifnot(dim(coords)[3] >= 2)
-  #make first line
-  p1a <- coords[,1,1]
-  p1b <- coords[,1,2]
-  m1 <- (p1a[2] - p1b[2])/(p1a[1] - p1b[1])
-  b1 <- p1a[2] - m1*p1a[1]
-  
-  #make second line
-  p2a <- coords[,2,1]
-  p2b <- coords[,2,2]
-  m2 <- (p2a[2] - p2b[2])/(p2a[1] - p2b[1])
-  b2 <- p2a[2] - m2*p2a[1]
-  
-  #find intersection
-  x_inter <- (b2 - b1)/(m1 - m2)
-  y_inter <- m1*x_inter + b1
-  
-  return(c(x_inter, y_inter))
-}
+####I think this function is no longer used
+#' #' Find the center point based on at least two observations
+#' #' @param coords array of coordinates of dimensions 2 x number of points x
+#' #' number of samples
+#' find_center <- function(coords) {
+#'   stopifnot(dim(coords)[3] >= 2)
+#'   #make first line
+#'   p1a <- coords[,1,1]
+#'   p1b <- coords[,1,2]
+#'   m1 <- (p1a[2] - p1b[2])/(p1a[1] - p1b[1])
+#'   b1 <- p1a[2] - m1*p1a[1]
+#'   
+#'   #make second line
+#'   p2a <- coords[,2,1]
+#'   p2b <- coords[,2,2]
+#'   m2 <- (p2a[2] - p2b[2])/(p2a[1] - p2b[1])
+#'   b2 <- p2a[2] - m2*p2a[1]
+#'   
+#'   #find intersection
+#'   x_inter <- (b2 - b1)/(m1 - m2)
+#'   y_inter <- m1*x_inter + b1
+#'   
+#'   return(c(x_inter, y_inter))
+#' }
 
 #' Find angle distance between two angle measures in range (0, 2pi)
 #' @title Distance between angles
@@ -129,5 +130,34 @@ pts_on_l <- function(l, cont, under) {
     }
   }
   return(pts_on_l)
+}
+
+#' Find center point that minimizes area in error
+#' @param C_poss matrix of dimension n x 2 that gives the n possible locations
+#' for C 
+#' @param train list of contours formatted as \code{SpatialPolygons} objects
+#' from which the model will be fit
+#' @param thetas the angles on which the lines will be specified
+best_C <- function(C_poss, train, thetas) {
+  n_poss <- nrow(C_poss)
+  n_train <- length(train)
+  #Compute areas in error (area_out)
+  area_out <- matrix(nrow = n_poss, ncol = n_train)
+  for (i in 1:n_poss) {
+    l <- make_l(C = C_poss[i,], theta = thetas)
+    for (j in 1:n_train) {
+      pts_on_l_j <- pts_on_l(l = l, cont = train[[j]], under = FALSE)
+      poss_j <- make_poly(pts_on_l_j, "test_cont")
+      diff_reg1 <- gDifference(poss_j, train[[j]])
+      diff_reg2 <- gDifference(train[[j]], poss_j)
+      area_out[i, j] <- gArea(diff_reg1) + gArea(diff_reg2)
+    }
+  }
+  
+  #Find estimated center point
+  opt_ind <- which.min(apply(area_out, 1, max))
+  C_hat <- matrix(grid_pts@coords[opt_ind,], ncol = 2)
+  
+  return(C_hat)
 }
 
