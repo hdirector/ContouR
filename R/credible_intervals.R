@@ -17,21 +17,25 @@ cred_regs <- function(prob, cred_eval, nrows, ncols) {
 
 
 #' Evaluate credible regions
-#' @param truth \code{SpatialLines} object giving the true contour
+#' @param truth \code{SpatialPolygons} object giving the true contour 
+#' boundary with pixel of one width
 #' @param cred_reg \code{SpatialPolygons} object giving a \eqn{1 - \alpha}
 #' credible region
 #' @param center coordinates of center point
-#' @param p_est number of angles on which to evaluate the crossing
+#' @param p_test number of angles on which to evaluate the crossing
+#' @param nrows number of rows in grid
+#' @param ncols number of columns in grid
 #' @param r maximum radius to make test lines
 #' @param plotting boolean indicating if plots should be made
 #' @return vector of booleans indicating if crossing was in the credible interval
 #' @importFrom rgeos gIntersects
 #' @importFrom sp SpatialLines
 #' @export
-eval_cred_reg <- function(truth, cred_reg, center, p_test, r = 5, 
-                          plotting = FALSE) {
-  #convert poly to line
+eval_cred_reg <- function(truth, cred_reg, center, p_test, nrows, ncols,
+                          r = 5, plotting = FALSE) {
+  #convert polygon to SpatialLines object
   truth <- as(truth, "SpatialLines")
+ 
   #generate testing lines
   theta_space <- 2*pi/p_test
   theta <- seq(theta_space/2, 2*pi, by = theta_space)
@@ -44,9 +48,9 @@ eval_cred_reg <- function(truth, cred_reg, center, p_test, r = 5,
   }
   for (i in 1:p_test) {
     test_line <- make_line(p1 = center, p2 = c(x[i], y[i]), "test")
-    test_line <- inter_coll(cred_reg, test_line)
+    test_line <- inter_coll(coll = cred_reg, line = test_line)
     stopifnot(!is.null(test_line))
-    if (gIntersects(truth, test_line)) {
+    if (gIntersects(test_line, truth)) {
       cover[i] <- TRUE
     }
     if (plotting) {

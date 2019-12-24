@@ -6,8 +6,10 @@
 #' @param Cx parameter \eqn{Cx} in model
 #' @param Cy parameter \eqn{Cy} in model
 #' @param thetas list of angles to generate lines on 
+#' @param bd n x 2 matrix of the n coordinates describing the boundary 
+#' around region 
 #' @export
-gen_conts <- function(n_sim, mu, kappa, sigma, Cx, Cy, thetas) {
+gen_conts <- function(n_sim, mu, kappa, sigma, Cx, Cy, thetas, bd) {
   #preliminary
   p <- length(mu)
   theta_dist <- theta_dist_mat(thetas)
@@ -16,25 +18,28 @@ gen_conts <- function(n_sim, mu, kappa, sigma, Cx, Cy, thetas) {
   #Simulate parallel points
   y_sim <-  matrix(t(mvrnorm(n_sim, mu, Sigma)), ncol = n_sim)
   y_sim[y_sim < 0] <- 1e-5 #no negative lengths
-  coords <- array(dim = c(2, p, n_sim))
-  coords[1,,] <- y_sim*cos(thetas) + Cx
-  coords[2,,] <- y_sim*sin(thetas) + Cy
+  coords_temp <- array(dim = c(2, p, n_sim))
+  coords_temp[1,,] <- y_sim*cos(thetas) + Cx
+  coords_temp[2,,] <- y_sim*sin(thetas) + Cy
   
+  #interpolate along boundary
+  coords <- list()
   #interpolate along land
-  coords <- interp_new_pts(new_pts <- t(coords[,,1]), bd = bd_scale)
+  for (i in 1:n_sim) {
+    coords[[i]] <- interp_new_pts(new_pts = t(coords_temp[,,i]), bd = bd)
+  }
   
   #make polys
-  polys <- apply(coords, 3, function(x){make_poly(cbind(x[1,], x[2,]), "sim")})
+  polys <- lapply(coords, function(x){make_poly(x, "sim")})
   return(list("coords" = coords, "polys" = polys))
 }
-
 
 
 #' Interpolate contour points that are very close to land boundaries
 #' @title Interpolate along region boundaries
 #' @param new_pts coordinates of the contour
-#' @param end indicator determining if the points are being interpolated on
-#' the ending coordinates or the starting coordinates. Defaults to \code{TRUE}.
+#' @param bd n x 2 matrix of coordinates giving the n points laying out the boundary
+#' of the shapes
 #' @param close how close a point must be to the line to count
 #' as being on it, defaults to 0.5 (half a grid box's length)
 interp_new_pts <- function(new_pts, bd, close = .01) {

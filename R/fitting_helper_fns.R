@@ -1,28 +1,3 @@
-####I think this function is no longer used
-#' #' Find the center point based on at least two observations
-#' #' @param coords array of coordinates of dimensions 2 x number of points x
-#' #' number of samples
-#' find_center <- function(coords) {
-#'   stopifnot(dim(coords)[3] >= 2)
-#'   #make first line
-#'   p1a <- coords[,1,1]
-#'   p1b <- coords[,1,2]
-#'   m1 <- (p1a[2] - p1b[2])/(p1a[1] - p1b[1])
-#'   b1 <- p1a[2] - m1*p1a[1]
-#'   
-#'   #make second line
-#'   p2a <- coords[,2,1]
-#'   p2b <- coords[,2,2]
-#'   m2 <- (p2a[2] - p2b[2])/(p2a[1] - p2b[1])
-#'   b2 <- p2a[2] - m2*p2a[1]
-#'   
-#'   #find intersection
-#'   x_inter <- (b2 - b1)/(m1 - m2)
-#'   y_inter <- m1*x_inter + b1
-#'   
-#'   return(c(x_inter, y_inter))
-#' }
-
 #' Find angle distance between two angle measures in range (0, 2pi)
 #' @title Distance between angles
 #' @param a angle value in the range [0, 2pi]
@@ -76,7 +51,7 @@ rescale <- function(coords, eps, grid = NULL, bd = NULL) {
   coords_scale <-  lapply(coords, function(x){
                               eps + (1 - 2*eps)*cbind((x[,1] - xmn)/x_delta,
                                                       (x[,2] - ymn)/y_delta)})
-   
+  coords_scale <- lapply(coords_scale, function(x){round(x, 5)})
  #rescale and shift grid                                                                                                (x[,2] - ymn)/y_delta)})
   if (!is.null(grid)) {
     keep <- apply(grid, 1, function(x){(x[1] >= xmn) & (x[1] <= xmx) &
@@ -84,12 +59,14 @@ rescale <- function(coords, eps, grid = NULL, bd = NULL) {
     grid_keep <- grid[keep,]
     grid_scale <- eps + (1 - 2*eps)*cbind((grid_keep[,1] - xmn)/x_delta,
                                           (grid_keep[,2] - ymn)/y_delta)
+    grid_scale <- round(grid_scale, 5)
   }
  
   #rescale and shift boundary
   if (!is.null(bd)) {
     bd_scale <- eps + (1 - 2*eps)*cbind((bd[,1] - xmn)/x_delta,
                                         (bd[,2] - ymn)/y_delta)
+    bd_scale <- round(bd_scale, 5)
   }
   
   return(list("coords_scale" = coords_scale, "grid_scale" = grid_scale,
@@ -133,15 +110,20 @@ pts_on_l <- function(l, cont, under) {
 }
 
 #' Find center point that minimizes area in error
-#' @param C_poss matrix of dimension n x 2 that gives the n possible locations
-#' for C 
+#' @param C_poss set of \code{SpatialPoints} that correspond to the possible 
+#' center points to assess
 #' @param conts list of contours formatted as \code{SpatialPolygons} objects
 #' from which the model will be fit
 #' @param thetas the angles on which the lines will be specified
 best_C <- function(C_poss, conts, thetas) {
+  #restrict set of points to test to those points that are in every contour
+  C_in_cont <- sapply(conts, function(x){gIntersects(C_poss, x, byid = TRUE)})
+  keep <- apply(C_in_cont, 1, function(x){all(x)})
+  C_poss <- C_poss[keep,]@coords
+
+  #Compute areas in error (area_out) for each C
   n_poss <- nrow(C_poss)
   n_conts <- length(conts)
-  #Compute areas in error (area_out)
   area_out <- matrix(nrow = n_poss, ncol = n_conts)
   for (i in 1:n_poss) {
     l <- make_l(C = C_poss[i,], theta = thetas)
@@ -161,7 +143,7 @@ best_C <- function(C_poss, conts, thetas) {
   
   #Find estimated center point
   opt_ind <- which.min(apply(area_out, 1, max))
-  C_hat <- matrix(grid_pts@coords[opt_ind,], ncol = 2)
+  C_hat <- matrix(C_poss[opt_ind,], ncol = 2)
   
   return(C_hat)
 }
