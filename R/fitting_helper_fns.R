@@ -117,9 +117,14 @@ pts_on_l <- function(l, cont, under) {
 #' @param thetas the angles on which the lines will be specified
 best_C <- function(C_poss, conts, thetas) {
   #restrict set of points to test to those points that are in every contour
-  C_in_cont <- sapply(conts, function(x){gIntersects(C_poss, x, byid = TRUE)})
-  keep <- apply(C_in_cont, 1, function(x){all(x)})
-  C_poss <- C_poss[keep,]@coords
+  if (length(conts) > 1) {
+    C_in_cont <- sapply(conts, function(x){gIntersects(C_poss, x, byid = TRUE)})
+    keep <- apply(C_in_cont, 1, function(x){all(x)})
+  } else {
+    C_in_cont <- gIntersects(C_poss, conts, byid = TRUE)
+    keep <- which(C_in_cont)
+  }
+  C_poss <- C_poss@coords[keep,]
 
   #Compute areas in error (area_out) for each C
   n_poss <- nrow(C_poss)
