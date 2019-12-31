@@ -34,7 +34,7 @@ cred_regs <- function(prob, cred_eval, nrows, ncols) {
 #' @importFrom sp SpatialLines
 #' @export
 eval_cred_reg <- function(truth, cred_reg, center, p_test, nrows, ncols,
-                          r = 5, plotting = FALSE, tol = .005) {
+                          r = 5, plotting = FALSE, tol = .01) {
   #convert polygon to SpatialLines object
   truth <- as(truth, "SpatialLines")
  
