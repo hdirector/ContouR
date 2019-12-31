@@ -27,12 +27,14 @@ cred_regs <- function(prob, cred_eval, nrows, ncols) {
 #' @param ncols number of columns in grid
 #' @param r maximum radius to make test lines
 #' @param plotting boolean indicating if plots should be made
+#' @param tol below what distance should a point be considered to intersect
+#' with another point or line
 #' @return vector of booleans indicating if crossing was in the credible interval
 #' @importFrom rgeos gIntersects
 #' @importFrom sp SpatialLines
 #' @export
 eval_cred_reg <- function(truth, cred_reg, center, p_test, nrows, ncols,
-                          r = 5, plotting = FALSE) {
+                          r = 5, plotting = FALSE, tol = .005) {
   #convert polygon to SpatialLines object
   truth <- as(truth, "SpatialLines")
  
@@ -48,16 +50,18 @@ eval_cred_reg <- function(truth, cred_reg, center, p_test, nrows, ncols,
   }
   for (i in 1:p_test) {
     test_line <- make_line(p1 = center, p2 = c(x[i], y[i]), "test")
-    test_line <- inter_coll(coll = cred_reg, line = test_line)
-    stopifnot(!is.null(test_line))
-    if (gIntersects(test_line, truth)) {
+    in_cred_seg <- inter_coll(coll = cred_reg, line = test_line)
+    inter_pts <- gIntersection(test_line, truth)
+    dist_to_pts <- apply(inter_pts@coords, 1, function(x) {
+                      gDistance(SpatialPoints(matrix(x, ncol = 2)), in_cred_seg)})
+    if (all(dist_to_pts < tol)) { #all points must be covered to count
       cover[i] <- TRUE
     }
     if (plotting) {
       if (cover[i]) {
-        plot(test_line, add = T)
+        plot(in_cred_seg, add = T)
       } else {
-        plot(test_line, col = 'red', add = T)
+        plot(in_cred_seg, col = 'red', add = T)
       }
     }
   }
