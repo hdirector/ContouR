@@ -80,14 +80,14 @@ inter_coll <- function(coll, line) {
   } else if (type_name == "SpatialLines") {
     return(gIntersection(coll, line))
   } else if (type_name == 'SpatialCollections') {
-    inter1 <- gIntersection(coll@polyobj, line)
-    if (!is.null(inter1)) {
-      return(inter1)
+    inter_lines <- gIntersection(coll@polyobj, line)
+    inter_points <- gIntersection(coll@lineobj, line)
+    if (is.null(inter_lines)) {
+      return(inter_points)
+    } else if (is.null(inter_points)) {
+        return(inter_lines)
     } else {
-      inter2 <- gIntersection(coll@lineobj, line)
-      if (!is.null(inter2)) {
-        return(inter2)
-      }
-    } 
+      return(SpatialCollections(points = inter_points, lines = inter_lines))
+    }
   }
 }
