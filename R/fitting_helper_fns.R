@@ -30,10 +30,11 @@ theta_dist_mat <- function(thetas) {
 #' buffer space
 #' @param coords list of sets of matrix of coordinates to rescale together
 #' @param eps how much buffer space to leave with bounds of box
+#' @param box_size current size of square grid boxes
 #' @param grid matrix of grid points that should be rescaled and
 #' extraneous points removed 
 #' @param bd coordinates of region boundary to rescale
-rescale <- function(coords, eps, grid = NULL, bd = NULL) {
+rescale <- function(coords, eps, box_size, grid = NULL, bd = NULL) {
   #need a reasonable buffer length
   stopifnot(eps < .5)
   
@@ -51,7 +52,6 @@ rescale <- function(coords, eps, grid = NULL, bd = NULL) {
   coords_scale <-  lapply(coords, function(x){
                               eps + (1 - 2*eps)*cbind((x[,1] - xmn)/x_delta,
                                                       (x[,2] - ymn)/y_delta)})
-  coords_scale <- lapply(coords_scale, function(x){round(x, 5)})
  #rescale and shift grid                                                                                                (x[,2] - ymn)/y_delta)})
   if (!is.null(grid)) {
     keep <- apply(grid, 1, function(x){(x[1] >= xmn) & (x[1] <= xmx) &
@@ -59,18 +59,19 @@ rescale <- function(coords, eps, grid = NULL, bd = NULL) {
     grid_keep <- grid[keep,]
     grid_scale <- eps + (1 - 2*eps)*cbind((grid_keep[,1] - xmn)/x_delta,
                                           (grid_keep[,2] - ymn)/y_delta)
-    grid_scale <- round(grid_scale, 5)
   }
  
   #rescale and shift boundary
   if (!is.null(bd)) {
     bd_scale <- eps + (1 - 2*eps)*cbind((bd[,1] - xmn)/x_delta,
                                         (bd[,2] - ymn)/y_delta)
-    bd_scale <- round(bd_scale, 5)
   }
   
+  #compute size of grid boxes in x and y
+  box_size <- (1 - 2*eps)*box_size/c(x_delta, y_delta)
+  
   return(list("coords_scale" = coords_scale, "grid_scale" = grid_scale,
-              "bd_scale" = bd_scale))
+              "bd_scale" = bd_scale, "box_size" = box_size))
 } 
 
 
