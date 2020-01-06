@@ -153,29 +153,6 @@ arma::vec projDist(arma::vec Cx, arma::vec Cy, arma::vec theta,
   return(ret);
 }
 
-//Compute W and Y values
-//[[Rcpp::export]]
-List XToWY(arma::vec Cx, arma::vec Cy, arma::cube x,  arma::vec theta) {
-  int p = x.n_cols;
-  int nSamp = x.n_slices;
-  arma::mat wSq(p, nSamp);
-  arma::mat y(p, nSamp);
-  arma::vec temp(2);
-  arma::vec thetaCurr(1);
-  for (unsigned i = 0; i < p; i++) {
-    thetaCurr(0) = theta(i);
-    for (unsigned j = 0; j < nSamp; j++) {
-      temp = projDist(Cx, Cy, thetaCurr,  x(0,i, j), x(1, i, j));
-      wSq(i, j) = temp(0);
-      y(i, j) = temp(1);
-    }
-  }
-  
-  List wy;
-  wy["wSq"] = wSq;
-  wy["y"] = y;
-  return(wy);
-}
 
 //' compute distances between angles
 //[[Rcpp::export]]
@@ -270,7 +247,7 @@ List RunMCMC(int nIter, arma::mat y,
       }
     }
     muStore.col(i) = mu;
-    
+
     ////////////////update kappa/////////////////
     arma::vec kappaProp =  kappaPropSD*arma::randn(1) + kappa(0);
     SigmaProp = compSigma(sigma, kappaProp, thetaDist);
