@@ -34,7 +34,7 @@ cred_regs <- function(prob, cred_eval, nrows, ncols) {
 #' @importFrom sp SpatialLines
 #' @export
 eval_cred_reg <- function(truth, cred_reg, center, p_test, nrows, ncols,
-                          r = 5, plotting = FALSE, tol = .01) {
+                          r = 5, plotting = FALSE, tol = .005) {
   #convert polygon to SpatialLines object
   truth <- as(truth, "SpatialLines")
  
@@ -45,7 +45,7 @@ eval_cred_reg <- function(truth, cred_reg, center, p_test, nrows, ncols,
   y <- center[2] + r*sin(theta)
   cover <- rep(FALSE, p_test)
   if (plotting) {
-    plot(cred_reg)
+    plot(cred_reg, xlim = c(0, 1), ylim = c(0, 1))
     plot(truth, add = T, col = 'blue')
   }
   for (i in 1:p_test) {
@@ -53,17 +53,18 @@ eval_cred_reg <- function(truth, cred_reg, center, p_test, nrows, ncols,
     in_cred_seg <- inter_coll(coll = cred_reg, line = test_line)
     inter_pts <- gIntersection(test_line, truth)
     dist_to_pts <- apply(inter_pts@coords, 1, function(x) {
-                      gDistance(SpatialPoints(matrix(x, ncol = 2)), in_cred_seg)})
+                        gDistance(SpatialPoints(matrix(x, ncol = 2)), in_cred_seg)})
     if (all(dist_to_pts < tol)) { #all points must be covered to count
       cover[i] <- TRUE
     }
     if (plotting) {
       if (cover[i]) {
-        plot(in_cred_seg, add = T)
+        plot(in_cred_seg, add = T, pch = 20, cex = .5)
       } else {
-        plot(in_cred_seg, col = 'red', add = T)
+        plot(in_cred_seg, col = 'red', add = T, pch = 20, cex = .5)
       }
     }
+    points(matrix(center, ncol = 2), pch = 20, col = 'green')
   }
   return(as.numeric(cover))
 }
