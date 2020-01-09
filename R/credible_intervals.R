@@ -65,6 +65,7 @@ eval_cred_reg <- function(truth, cred_reg, center, p_test, nrows, ncols,
       }
       points(matrix(center, ncol = 2), pch = 20, col = 'green')
     }
+    points(matrix(center, ncol = 2), pch = 20, col = 'green')
   }
   return(as.numeric(cover))
 }
