@@ -143,7 +143,15 @@ best_C <- function(C_poss, conts, thetas) {
       poss_j <- make_poly(pts_on_l_j, "test_cont")
       diff_reg1 <- gDifference(poss_j, cont_j)
       diff_reg2 <- gDifference(cont_j, poss_j)
-      area_out[i, j] <- gArea(diff_reg1) + gArea(diff_reg2)
+      if (!is.null(diff_reg1) & !is.null(diff_reg2)) {
+        area_out[i, j] <- gArea(diff_reg1) + gArea(diff_reg2)
+      } else if (!is.null(diff_reg1)) {
+        area_out[i, j] <- gArea(diff_reg1)
+      } else if (!is.null(diff_reg2)) {
+        area_out[i, j] <- gArea(diff_reg2)
+      } else {
+        area_out[i, j] <- 0
+      }
     }
   }
   
