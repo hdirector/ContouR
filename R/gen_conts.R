@@ -9,7 +9,7 @@
 #' @param bd n x 2 matrix of the n coordinates describing the boundary 
 #' around region 
 #' @export
-gen_conts <- function(n_sim, mu, kappa, sigma, Cx, Cy, thetas, bd) {
+gen_conts <- function(n_sim, mu, kappa, sigma, Cx, Cy, thetas, bd = NULL) {
   #preliminary
   p <- length(mu)
   theta_dist <- theta_dist_mat(thetas)
@@ -22,11 +22,14 @@ gen_conts <- function(n_sim, mu, kappa, sigma, Cx, Cy, thetas, bd) {
   coords_temp[1,,] <- y_sim*cos(thetas) + Cx
   coords_temp[2,,] <- y_sim*sin(thetas) + Cy
   
-  #interpolate along boundary
+  #reformat and interpolate along boundary if needed
   coords <- list()
-  #interpolate along land
   for (i in 1:n_sim) {
-    coords[[i]] <- interp_new_pts(new_pts = t(coords_temp[,,i]), bd = bd)
+    if (!is.null(bd)) {
+      coords[[i]] <- interp_new_pts(new_pts = t(coords_temp[,,i]), bd = bd)
+    } else {
+      coords[[i]] <- t(coords_temp[,,i])
+    }
   }
   
   #make polys
@@ -174,4 +177,18 @@ sec_to_interp <- function(p1 = NULL, p2 = NULL, bd, loop = FALSE) {
   
   rownames(pts_ret) <- NULL
   return(pts_ret)
+}
+
+#' Check if a point crosses a line segment
+#' @param pt_to_test numeric vector of length two giving the point to test
+#' @param fixed_pts matrix of dimension 2 by 2 giving the line segment to test
+pt_line_inter <- function(pt_to_test, fixed_pts) {
+  if (any(apply(fixed_pts, 1, function(x){all(x == pt_to_test)}))) {
+    #if point touches the point boundary, return FALSE looking for intersections
+    return(FALSE)
+  } else {
+    pt_to_test <- SpatialPoints(matrix(pt_to_test, ncol = 2))
+    fixed_line <- SpatialLines(list(Lines(Line(fixed_pts), ID = "fixed")))
+    return(gIntersects(pt_to_test, fixed_line))
+  }
 }
