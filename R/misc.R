@@ -9,10 +9,10 @@ NULL
 conv_to_grid <- function (x, nrows = 100, ncols = 100, xmn = 0, xmx = 1,
                           ymn = 0, ymx = 1) {
   rast <- raster(nrows = nrows, ncols = ncols, xmn = xmn, xmx = xmx, 
-                 ymn = ymn, ymx = ymx)
+                 ymn = ymn, ymx = ymx, crs = NA)
   rast <- rasterize(x, rast, fun = max, background = 0)
   rast <- as.matrix(rast)
-  rast <- t(rast)[, ncols:1]
+  rast <- t(rast)[, nrows:1]
   return(rast)
 }
 
@@ -87,13 +87,17 @@ dist_mat_circle <- function(n) {
 #' @param polys list of contours as polygon objects
 #' @param nrows number of rows in grid, defaults to 100
 #' @param ncols number of columns in grid, defaults to 100
+#' @param xmn 
+#' @param xmx
+#' @param ymn
+#' @param ymx 
 #' @export
-prob_field <- function(polys, nrows, ncols) {
+prob_field <- function(polys, nrows, ncols, xmn = 0, xmx = 1,
+                       ymn = 0, ymx = 1) {
   n_sim <- length(polys)
-  sim_grid <- lapply(polys, function(x){conv_to_grid(x, nrows = nrows, 
-                                                         ncols = ncols, xmn = 0, 
-                                                         xmx = 1, ymn = 0,
-                                                         ymx = 1)})
+  sim_grid <- lapply(polys, function(x){conv_to_grid(x, nrows = nrows, ncols = ncols,
+                                                     xmn = xmn, xmx = xmx,
+                                                     ymn = ymn, ymx = ymx)})
   prob <- Reduce("+", sim_grid)/n_sim
   return(prob)
 }
