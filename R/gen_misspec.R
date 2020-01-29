@@ -39,8 +39,8 @@ gen_misspec_curl <- function(n_sim, mu, kappa, sigma, Cx, Cy, thetas,  r1_min,
   coords_temp <- array(dim = c(2, p, n_sim))
   coords_temp[1,,] <- y_sim*cos(thetas) + Cx
   coords_temp[2,,] <- y_sim*sin(thetas) + Cy
-
   
+  #find all generated coordinates
   for (i in 1:n_sim) {
     #generate parameters for curled extension 
     n_curl <- sample(n_curl_min:n_curl_max, 1)
@@ -49,20 +49,32 @@ gen_misspec_curl <- function(n_sim, mu, kappa, sigma, Cx, Cy, thetas,  r1_min,
     r2 <- max(y_sim) + runif(1, r2_min, r2_max)
     
     ###add curled extension
-    print(c(start_ind, p))
     before_pts <- t(coords_temp[,1:start_ind,i])
-    n_end <- start_ind + n_curl
-    if (n_end <= p) {
-      back <- start_ind:(start_ind + n_curl)
-      forw <- (start_ind + n_curl):(start_ind + 1)
+    if (start_ind != p) {
+      n_end <- start_ind + n_curl
+      if (n_end <= p) {
+        back <- start_ind:(start_ind + n_curl)
+        forw <- (start_ind + n_curl):(start_ind + 1)
+      } else {
+        back <- c(start_ind:p, 1:(n_end - p))
+        forw <- c((n_end - p):1, p:(start_ind + 1))
+      }
     } else {
-      back <- c(start_ind:p, 1:(n_end - p))
-      after <- c((n_end - p):1, p:(start_ind + 1))
+      back <- c(p, 1:n_curl)
+      forw <- n_curl:1
     }
     back_pts <- cbind(r2*cos(thetas[back]) + Cx, r2*sin(thetas[back]) + Cy)
     forw_pts <- cbind(r1*cos(thetas[forw]) + Cx,r1*sin(thetas[forw]) + Cy)
-    after_pts <- t(coords_temp[,(start_ind + 1):p,i])
-    coords_i <- rbind(before_pts, back_pts, forw_pts, after_pts)
+    
+    #put together component sections
+    if (start_ind != p) {
+      after_pts <- t(coords_temp[,(start_ind + 1):p,i])
+      coords_i <- rbind(before_pts, back_pts, forw_pts, after_pts)
+    } else {
+      coords_i <- rbind(before_pts, back_pts, forw_pts)
+    }
+    plot(coords_i, type= "l")
+    i <- i + 1
     
     #reformat and interpolate along boundary if needed
     if (!is.null(bd)) {
