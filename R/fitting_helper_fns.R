@@ -59,12 +59,16 @@ rescale <- function(coords, eps, box_size, grid = NULL, bd = NULL) {
     grid_keep <- grid[keep,]
     grid_scale <- eps + (1 - 2*eps)*cbind((grid_keep[,1] - xmn)/x_delta,
                                           (grid_keep[,2] - ymn)/y_delta)
+  } else {
+    grid_scale <- NULL
   }
  
   #rescale and shift boundary
   if (!is.null(bd)) {
     bd_scale <- eps + (1 - 2*eps)*cbind((bd[,1] - xmn)/x_delta,
                                         (bd[,2] - ymn)/y_delta)
+  } else {
+    bd_scale <- NULL
   }
   
   #compute size of grid boxes in x and y
