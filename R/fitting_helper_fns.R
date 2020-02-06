@@ -113,14 +113,43 @@ pts_on_l <- function(l, cont, under) {
   }
   return(pts_on_l)
 }
+#' Place grid of points within a box
+#' @param xmid midpoint of box in x direction
+#' @param ymid midpoint of box in y direction
+#' @param x_length length of box in x direction
+#' @param y_length length of box in y direction
+#' @param pts_per_dir number of points in x and y directions
+pts_in_box <- function(xmid, ymid, x_length, y_length, pts_per_dir) {
+  x_pts <- seq(xmid - x_length/2, xmid + x_length/2, length = pts_per_dir)
+  y_pts <- seq(ymid - y_length/2, ymid + y_length/2, length = pts_per_dir)
+  C_poss <- as.matrix(expand.grid(x_pts, y_pts))
+  return(C_poss)
+}
+
 
 #' Find center point that minimizes area in error
-#' @param C_poss set of \code{SpatialPoints} that correspond to the possible 
-#' center points to assess
+#' @param bd matrix giving boundary points of region
 #' @param conts list of contours formatted as \code{SpatialPolygons} objects
 #' from which the model will be fit
 #' @param thetas the angles on which the lines will be specified
-best_C <- function(C_poss, conts, thetas) {
+#' @param eps threshold to stop fine-tuning optimization. If points being test
+#' are within this distance lengths in x and y are fixed.
+#' @param pts_per_dir number of points in x and y directions
+best_C <- function(bd, conts, thetas, eps = .001, pts_per_dir = 10) {
+  diff <- 1
+  xmn <- min(bd[,1]); xmx <- max(bd[,1])
+  ymn <- min(bd[,2]); ymx <- max(bd[,2])
+  
+  #grid over space, points in center of grid
+  x_length_init <- (xmx - xmn)
+  x_mid_init <- x_length_init/2
+  y_length_init <- (ymx - ymn)
+  y_mid_init <- y_length_init/2
+  C_poss <- SpatialPoints(pts_in_box(xmid = x_mid_init, ymid = y_mid_init, 
+                                     x_length = x_length_init, 
+                                     y_length = y_length_init,
+                                     pts_per_dir = pts_per_dir))
+  
   #restrict set of points to test to those points that are in every contour
   if (length(conts) > 1) {
     C_in_cont <- sapply(conts, function(x){gIntersects(C_poss, x, byid = TRUE)})
@@ -130,39 +159,65 @@ best_C <- function(C_poss, conts, thetas) {
     keep <- which(C_in_cont)
   }
   C_poss <- C_poss@coords[keep,]
-
-  #Compute areas in error (area_out) for each C
-  n_poss <- nrow(C_poss)
-  n_conts <- length(conts)
-  area_out <- matrix(nrow = n_poss, ncol = n_conts)
-  for (i in 1:n_poss) {
-    l <- make_l(C = C_poss[i,], theta = thetas)
-    for (j in 1:n_conts) {
-      if (n_conts > 1) {
-        cont_j <- conts[[j]]
-      } else {
-        cont_j <- conts
-      }
-      pts_on_l_j <- pts_on_l(l = l, cont = cont_j, under = FALSE)
-      poss_j <- make_poly(pts_on_l_j, "test_cont")
-      diff_reg1 <- gDifference(poss_j, cont_j)
-      diff_reg2 <- gDifference(cont_j, poss_j)
-      if (!is.null(diff_reg1) & !is.null(diff_reg2)) {
-        area_out[i, j] <- gArea(diff_reg1) + gArea(diff_reg2)
-      } else if (!is.null(diff_reg1)) {
-        area_out[i, j] <- gArea(diff_reg1)
-      } else if (!is.null(diff_reg2)) {
-        area_out[i, j] <- gArea(diff_reg2)
-      } else {
-        area_out[i, j] <- 0
+  
+  #find x_length and y_length of each grid box
+  x_length <- x_length_init/pts_per_dir
+  y_length <- y_length_init/pts_per_dir
+  
+  while (x_length > eps | y_length > eps) {
+    #Compute areas in error (area_out) for each C
+    n_poss <- nrow(C_poss)
+    n_conts <- length(conts)
+    area_out <- matrix(nrow = n_poss, ncol = n_conts)
+    for (i in 1:n_poss) {
+      l <- make_l(C = C_poss[i,], theta = thetas)
+      for (j in 1:n_conts) {
+        if (n_conts > 1) {
+          cont_j <- conts[[j]]
+        } else {
+          cont_j <- conts
+        }
+        pts_on_l_j <- pts_on_l(l = l, cont = cont_j, under = FALSE)
+        poss_j <- make_poly(pts_on_l_j, "test_cont")
+        diff_reg1 <- gDifference(poss_j, cont_j)
+        diff_reg2 <- gDifference(cont_j, poss_j)
+        if (!is.null(diff_reg1) & !is.null(diff_reg2)) {
+          area_out[i, j] <- gArea(diff_reg1) + gArea(diff_reg2)
+        } else if (!is.null(diff_reg1)) {
+          area_out[i, j] <- gArea(diff_reg1)
+        } else if (!is.null(diff_reg2)) {
+          area_out[i, j] <- gArea(diff_reg2)
+        } else {
+          area_out[i, j] <- 0
+        }
       }
     }
+    
+    #Find point that minimizes the maximum area in error
+    max_area <- apply(area_out, 1, max)
+    
+    #make finer grid of points around best point
+    C_keep <- as.numeric(C_poss[which.min(max_area),])
+    C_poss <- SpatialPoints(pts_in_box(xmid = C_keep[1], ymid = C_keep[2],  x_length = x_length,
+                                       y_length = y_length,pts_per_dir = pts_per_dir))
+    
+    #restrict set of points to test to those points that are in every contour
+    if (length(conts) > 1) {
+      C_in_cont <- sapply(conts, function(x){gIntersects(C_poss, x, byid = TRUE)})
+      keep <- apply(C_in_cont, 1, function(x){all(x)})
+    } else {
+      C_in_cont <- gIntersects(C_poss, conts, byid = TRUE)
+      keep <- which(C_in_cont)
+    }
+    C_poss <- C_poss@coords[keep,]
+    
+    #find x_length and y_length of each grid box
+    x_length <- x_length/pts_per_dir
+    y_length <- y_length/pts_per_dir
   }
   
-  #Find estimated center point
-  opt_ind <- which.min(apply(area_out, 1, max))
-  C_hat <- matrix(C_poss[opt_ind,], ncol = 2)
+  max_area <- apply(area_out, 1, max)
+  C_hat <- as.numeric(C_poss[which.min(max_area),])
   
   return(C_hat)
 }
-
