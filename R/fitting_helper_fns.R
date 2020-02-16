@@ -158,7 +158,7 @@ best_C <- function(bd, conts, thetas, eps = .001, pts_per_dir = 10) {
     C_in_cont <- gIntersects(C_poss, conts, byid = TRUE)
     keep <- which(C_in_cont)
   }
-  C_poss <- C_poss@coords[keep,]
+  C_poss <- matrix(C_poss@coords[keep,], ncol = 2)
   
   #find x_length and y_length of each grid box
   x_length <- x_length_init/pts_per_dir
