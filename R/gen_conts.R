@@ -3,13 +3,12 @@
 #' @param mu parameter \eqn{mu} in model
 #' @param kappa parameter \eqn{kappa} in model
 #' @param sigma parameter \eqn{sigma} in model
-#' @param Cx parameter \eqn{Cx} in model
-#' @param Cy parameter \eqn{Cy} in model
+#' @param C parameter \eqn{C} in model
 #' @param thetas list of angles to generate lines on 
 #' @param bd n x 2 matrix of the n coordinates describing the boundary 
 #' around region 
 #' @export
-gen_conts <- function(n_sim, mu, kappa, sigma, Cx, Cy, thetas, bd = NULL) {
+gen_conts <- function(n_sim, mu, kappa, sigma, C, thetas, bd = NULL) {
   #preliminary
   p <- length(mu)
   theta_dist <- theta_dist_mat(thetas)
@@ -19,8 +18,8 @@ gen_conts <- function(n_sim, mu, kappa, sigma, Cx, Cy, thetas, bd = NULL) {
   y_sim <-  matrix(t(mvrnorm(n_sim, mu, Sigma)), ncol = n_sim)
   y_sim[y_sim < 0] <- 1e-5 #no negative lengths
   coords_temp <- array(dim = c(2, p, n_sim))
-  coords_temp[1,,] <- y_sim*cos(thetas) + Cx
-  coords_temp[2,,] <- y_sim*sin(thetas) + Cy
+  coords_temp[1,,] <- y_sim*cos(thetas) + C[1]
+  coords_temp[2,,] <- y_sim*sin(thetas) + C[2]
   
   #reformat and interpolate along boundary if needed
   coords <- list()
