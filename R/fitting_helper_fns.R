@@ -140,29 +140,40 @@ best_C <- function(bd, conts, thetas, eps = .001, pts_per_dir = 10) {
   xmn <- min(bd[,1]); xmx <- max(bd[,1])
   ymn <- min(bd[,2]); ymx <- max(bd[,2])
   
-  #grid over space, points in center of grid
-  x_length_init <- (xmx - xmn)
-  x_mid_init <- x_length_init/2
-  y_length_init <- (ymx - ymn)
-  y_mid_init <- y_length_init/2
-  C_poss <- SpatialPoints(pts_in_box(xmid = x_mid_init, ymid = y_mid_init, 
-                                     x_length = x_length_init, 
-                                     y_length = y_length_init,
-                                     pts_per_dir = pts_per_dir))
-  
-  #restrict set of points to test to those points that are in every contour
-  if (length(conts) > 1) {
-    C_in_cont <- sapply(conts, function(x){gIntersects(C_poss, x, byid = TRUE)})
-    keep <- apply(C_in_cont, 1, function(x){all(x)})
-  } else {
-    C_in_cont <- gIntersects(C_poss, conts, byid = TRUE)
-    keep <- which(C_in_cont)
+  n_poss <- 0
+  pts_per_dir_init <- pts_per_dir
+  while(n_poss < 1) {
+    #grid over space, points in center of grid
+    x_length_init <- (xmx - xmn)
+    x_mid_init <- x_length_init/2
+    y_length_init <- (ymx - ymn)
+    y_mid_init <- y_length_init/2
+    C_poss <- SpatialPoints(pts_in_box(xmid = x_mid_init, ymid = y_mid_init, 
+                                       x_length = x_length_init, 
+                                       y_length = y_length_init,
+                                       pts_per_dir = pts_per_dir))
+    
+    #restrict set of points to test to those points that are in every contour
+    if (length(conts) > 1) {
+      C_in_cont <- sapply(conts, function(x){gIntersects(C_poss, x, byid = TRUE)})
+      keep <- apply(C_in_cont, 1, function(x){all(x)})
+    } else {
+      C_in_cont <- gIntersects(C_poss, conts, byid = TRUE)
+      keep <- which(C_in_cont)
+    }
+    C_poss <- matrix(C_poss@coords[keep,], ncol = 2)
+    
+    #check if grid had valid points. If not, try again with finer scale 
+    n_poss <- nrow(C_poss)
+    pts_per_dir <- pts_per_dir + 5
   }
-  C_poss <- matrix(C_poss@coords[keep,], ncol = 2)
   
   #find x_length and y_length of each grid box
   x_length <- x_length_init/pts_per_dir
   y_length <- y_length_init/pts_per_dir
+  
+  #return to original spacing
+  pts_per_dir <- pts_per_dir_init
   
   while (x_length > eps | y_length > eps) {
     #Compute areas in error (area_out) for each C
