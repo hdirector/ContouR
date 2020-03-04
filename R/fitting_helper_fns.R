@@ -127,6 +127,43 @@ pts_in_box <- function(xmid, ymid, x_length, y_length, pts_per_dir) {
 }
 
 
+#' Compute area in error for a set contours
+#' @param conts list of contours formatted as \code{SpatialPolygons} objects
+#' from which the model will be fit
+#' @param C center point
+#' @param thetas the angles on which the lines will be specified
+error_areas <- function(conts, C, thetas) {
+  n_conts <- length(conts)
+  areas <- rep(NA, n_conts)
+  l <- make_l(C = C, theta = thetas)
+  for (j in 1:n_conts) {
+    if (n_conts > 1) {
+      cont_j <- conts[[j]]
+    } else {
+      cont_j <- conts
+    }
+    
+    #make approximate polygon
+    pts_on_l_j <- pts_on_l(l = l, cont = cont_j, under = FALSE)
+    poss_j <- make_poly(pts_on_l_j, "test_cont")
+    
+    #compute area in error
+    diff_reg1 <- gDifference(poss_j, cont_j)
+    diff_reg2 <- gDifference(cont_j, poss_j)
+    if (!is.null(diff_reg1) & !is.null(diff_reg2)) {
+      areas[j] <- gArea(diff_reg1) + gArea(diff_reg2)
+    } else if (!is.null(diff_reg1)) {
+      areas[j] <- gArea(diff_reg1)
+    } else if (!is.null(diff_reg2)) {
+      areas[j] <- gArea(diff_reg2)
+    } else {
+      areas[j] <- 0
+    }
+  }
+  
+  return(areas)
+}
+
 #' Find center point that minimizes area in error
 #' @param bd matrix giving boundary points of region
 #' @param conts list of contours formatted as \code{SpatialPolygons} objects
@@ -153,7 +190,7 @@ best_C <- function(bd, conts, thetas, eps = .001, pts_per_dir = 10) {
                                        y_length = y_length_init,
                                        pts_per_dir = pts_per_dir))
     
-    #restrict set of points to test to those points that are in every contour
+    #restrict set of points to test those points that are in every contour
     if (length(conts) > 1) {
       C_in_cont <- sapply(conts, function(x){gIntersects(C_poss, x, byid = TRUE)})
       keep <- apply(C_in_cont, 1, function(x){all(x)})
@@ -176,42 +213,16 @@ best_C <- function(bd, conts, thetas, eps = .001, pts_per_dir = 10) {
   pts_per_dir <- pts_per_dir_init
   
   while (x_length > eps | y_length > eps) {
-    #Compute areas in error (area_out) for each C
+    #Compute areas in error for each C
     n_poss <- nrow(C_poss)
-    n_conts <- length(conts)
-    area_out <- matrix(nrow = n_poss, ncol = n_conts)
-    for (i in 1:n_poss) {
-      l <- make_l(C = C_poss[i,], theta = thetas)
-      for (j in 1:n_conts) {
-        if (n_conts > 1) {
-          cont_j <- conts[[j]]
-        } else {
-          cont_j <- conts
-        }
-        pts_on_l_j <- pts_on_l(l = l, cont = cont_j, under = FALSE)
-        poss_j <- make_poly(pts_on_l_j, "test_cont")
-        diff_reg1 <- gDifference(poss_j, cont_j)
-        diff_reg2 <- gDifference(cont_j, poss_j)
-        if (!is.null(diff_reg1) & !is.null(diff_reg2)) {
-          area_out[i, j] <- gArea(diff_reg1) + gArea(diff_reg2)
-        } else if (!is.null(diff_reg1)) {
-          area_out[i, j] <- gArea(diff_reg1)
-        } else if (!is.null(diff_reg2)) {
-          area_out[i, j] <- gArea(diff_reg2)
-        } else {
-          area_out[i, j] <- 0
-        }
-      }
-    }
-    
+    err_area <- apply(C_poss, 1, function(x){error_areas(conts = conts, C = x,
+                                             thetas = thetas)})
     #Find point that minimizes the maximum area in error
-    max_area <- apply(area_out, 1, max)
-    
+    max_area <- apply(err_area, 2, max)
     #make finer grid of points around best point
     C_keep <- as.numeric(C_poss[which.min(max_area),])
     C_poss <- SpatialPoints(pts_in_box(xmid = C_keep[1], ymid = C_keep[2],  x_length = x_length,
                                        y_length = y_length,pts_per_dir = pts_per_dir))
-    
     #restrict set of points to test to those points that are in every contour
     if (length(conts) > 1) {
       C_in_cont <- sapply(conts, function(x){gIntersects(C_poss, x, byid = TRUE)})
@@ -227,8 +238,28 @@ best_C <- function(bd, conts, thetas, eps = .001, pts_per_dir = 10) {
     y_length <- y_length/pts_per_dir
   }
   
-  max_area <- apply(area_out, 1, max)
+  max_area <- apply(err_area, 1, max)
   C_hat <- as.numeric(C_poss[which.min(max_area),])
   
   return(C_hat)
+}
+
+#' Find number of lines that will keep error under an acceptable level
+#' @param C center point
+#' @param conts list of contours formatted as \code{SpatialPolygons} objects
+#' from which the model will be fit
+#' @param area_tol maximum allowable area not represented
+#' @param p initial value of p 
+#' @param red_prop proportion to reduce p at each step
+reduce_p <- function(C, conts, area_tol, p, red_prop) {
+  p_last <- p
+  while (max_area < area_tol) {
+    p_last <- p
+    theta_space <- 2*pi/p
+    thetas <- seq(theta_space/2, 2*pi, theta_space)
+    err_area <- error_areas(conts = conts, C = C, thetas = thetas)
+    max_area <- max(err_area)
+    p <- floor((1 - red_prop)*p)
+  }
+  return(p_last)
 }
