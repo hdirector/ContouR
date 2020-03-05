@@ -3,8 +3,7 @@
 #' @param mu parameter \eqn{mu} in model
 #' @param kappa parameter \eqn{kappa} in model
 #' @param sigma parameter \eqn{sigma} in model
-#' @param Cx parameter \eqn{Cx} in model
-#' @param Cy parameter \eqn{Cy} in model
+#' @param C parameter \eqn{C} in model
 #' @param thetas list of angles to generate lines on 
 
 #' @param r1_min minimum added length of curled section outside main contour
@@ -16,7 +15,7 @@
 #' @param bd n x 2 matrix of the n coordinates describing the boundary 
 #' around region 
 #' @export
-gen_misspec <- function(n_sim, mu, kappa, sigma, Cx, Cy, thetas,  r1_min, 
+gen_misspec <- function(n_sim, mu, kappa, sigma, C, thetas,  r1_min, 
                         r1_max, r2_min, r2_max, n_curl_min, n_curl_max, 
                         bd = NULL) {
   #checks
@@ -37,8 +36,8 @@ gen_misspec <- function(n_sim, mu, kappa, sigma, Cx, Cy, thetas,  r1_min,
   y_sim <-  matrix(t(mvrnorm(n_sim, mu, Sigma)), ncol = n_sim)
   y_sim[y_sim < 0] <- 1e-5 #no negative lengths
   coords_temp <- array(dim = c(2, p, n_sim))
-  coords_temp[1,,] <- y_sim*cos(thetas) + Cx
-  coords_temp[2,,] <- y_sim*sin(thetas) + Cy
+  coords_temp[1,,] <- y_sim*cos(thetas) + C[1]
+  coords_temp[2,,] <- y_sim*sin(thetas) + C[2]
   
   #find all generated coordinates
   coords <- list()
@@ -66,8 +65,8 @@ gen_misspec <- function(n_sim, mu, kappa, sigma, Cx, Cy, thetas,  r1_min,
         back <- c(p, 1:n_curl)
         forw <- n_curl:1
       }
-      back_pts <- cbind(r2*cos(thetas[back]) + Cx, r2*sin(thetas[back]) + Cy)
-      forw_pts <- cbind(r1*cos(thetas[forw]) + Cx,r1*sin(thetas[forw]) + Cy)
+      back_pts <- cbind(r2*cos(thetas[back]) + C[1], r2*sin(thetas[back]) + C[2])
+      forw_pts <- cbind(r1*cos(thetas[forw]) + C[1],r1*sin(thetas[forw]) + C[2])
       
       #put together component sections
       if (start_ind != p) {
