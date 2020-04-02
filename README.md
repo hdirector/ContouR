@@ -1,2 +1,2 @@
-# PolygonKernels
-Code to find the kernel of a polygon using algorithm in Lee and Preparata (1979)
+# ContouR 
+In-progess R package for probabilistic contour models for approximately star-shaped regions
