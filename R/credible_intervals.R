@@ -22,7 +22,7 @@ cred_regs <- function(prob, cred_eval, nrows, ncols) {
 #' @param cred_reg \code{SpatialPolygons} object giving a \eqn{1 - \alpha}
 #' credible region
 #' @param center coordinates of center point
-#' @param p_test number of angles on which to evaluate the crossing
+#' @param thetas angles to test
 #' @param nrows number of rows in grid
 #' @param ncols number of columns in grid
 #' @param r maximum radius to make test lines
@@ -34,27 +34,30 @@ cred_regs <- function(prob, cred_eval, nrows, ncols) {
 #' @importFrom sp SpatialLines
 #' @export
 #' @details boundary must be a  least one pixel wide to work
-eval_cred_reg <- function(truth, cred_reg, center, p_test, nrows, ncols,
-                          r = 5, plotting = FALSE, tol = 1e-8) {
+eval_cred_reg <- function(truth, cred_reg, center, thetas, nrows, ncols, r = 5, 
+                          plotting = FALSE, tol = 1e-4) {
   #convert polygon to SpatialLines object
   truth <- as(truth, "SpatialLines")
- 
-  #generate testing lines
-  theta_space <- 2*pi/p_test
-  theta <- seq(theta_space/2, 2*pi, by = theta_space)
-  x <- center[1] + r*cos(theta)
-  y <- center[2] + r*sin(theta)
-  cover <- rep(FALSE, p_test)
+  
+  #make test lines
+  p_eval <- length(thetas)
+  x <- center[1] + r*cos(thetas)
+  y <- center[2] + r*sin(thetas)
+  
+  #test coverage
+  cover <- rep(FALSE, p_eval)
   if (plotting) {
-    plot(cred_reg, xlim = c(0, 1), ylim = c(0, 1))
-    plot(truth, add = T, col = 'blue')
+    plot(cred_reg, xlim = c(0, 1), ylim = c(0, 1), col = 'grey', 
+         border = "white")
+    plot(truth, add = T, col = 'red', lwd = 1)
   }
-  for (i in 1:p_test) {
+  for (i in 1:p_eval) {
     test_line <- make_line(p1 = center, p2 = c(x[i], y[i]), "test")
     in_cred_seg <- inter_coll(coll = cred_reg, line = test_line)
     inter_pts <- gIntersection(test_line, truth)
     dist_to_pts <- apply(inter_pts@coords, 1, function(x) {
-                        gDistance(SpatialPoints(matrix(x, ncol = 2)), in_cred_seg)})
+                        gDistance(SpatialPoints(matrix(x, ncol = 2)), 
+                                  in_cred_seg)})
     if (all(dist_to_pts < tol)) { #all points must be covered to count
       cover[i] <- TRUE
     }
@@ -62,9 +65,10 @@ eval_cred_reg <- function(truth, cred_reg, center, p_test, nrows, ncols,
       if (cover[i]) {
         plot(in_cred_seg, add = T, pch = 20, cex = .5)
       } else {
-        plot(in_cred_seg, col = 'red', add = T, pch = 20, cex = .5)
+        plot(in_cred_seg, col = 'blue', add = T, pch = 20, cex = .5)
       }
-      points(matrix(center, ncol = 2), pch = 20, col = 'green')
+      points(matrix(center, ncol = 2), pch = 3, col = 'darkgreen', cex = 1, 
+             lwd = 2)
     }
   }
   return(as.numeric(cover))
