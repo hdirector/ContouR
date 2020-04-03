@@ -165,6 +165,38 @@ error_areas <- function(conts, C, thetas, under = TRUE) {
   return(areas)
 }
 
+#' Find which points are in interior of all contours
+#' @param C_poss points to test as a \code{SpatialPolygons} object
+#' @param conts list of contours as \code{SpatialPolygons} objects
+valid_loc_C <- function(C_poss, conts) {
+  #remove points not in every contour
+  if (length(conts) > 1) {
+    C_in_cont <- sapply(conts, function(x){gIntersects(C_poss, x, byid = TRUE)})
+    keep <- apply(C_in_cont, 1, function(x){all(x)})
+  } else {
+    C_in_cont <- gIntersects(C_poss, conts, byid = TRUE)
+    keep <- which(C_in_cont)
+  }
+  C_poss <- C_poss[keep]
+  
+  #remove points on boundary itself
+  if (length(conts) > 1) {
+    cont_lines <- lapply(conts, function(x){as(x, "SpatialLines")})
+    C_on_edge <- sapply(cont_lines, function(x){gIntersects(C_poss, x,
+                                                            byid = TRUE)})
+    keep <- which(!apply(C_on_edge, 1, function(x){any(x)}))
+  } else {
+    cont_line <- as(conts, "SpatialLines")
+    C_on_edge <- gIntersects(C_poss, cont_line, byid = TRUE)
+    keep <- which(!C_on_edge)
+  }
+  C_poss <- C_poss[keep]
+  
+  return(C_poss)
+}
+
+
+
 #' Find center point that minimizes area in error
 #' @param bd matrix giving boundary points of region
 #' @param conts list of contours formatted as \code{SpatialPolygons} objects
@@ -175,67 +207,49 @@ error_areas <- function(conts, C, thetas, under = TRUE) {
 #' @param min_change If change from one step to another goes below this
 #'  threshold, return current value and warning
 #'  @param under boolean indicating approach if more than one point
-best_C <- function(bd, conts, thetas, area_tol, pts_per_dir = 10,
-                   min_change = 1e-5, under = TRUE) {
+best_C <- function(bd, conts, thetas, area_tol, pts_per_dir = 8,
+                   min_change = 1e-5, under = TRUE, init_step = 3) {
   diff <- 1
-  xmn <- min(bd[,1]); xmx <- max(bd[,1])
-  ymn <- min(bd[,2]); ymx <- max(bd[,2])
+  x_pts <- sapply(conts, function(x){x@bbox[1,]})
+  y_pts <- sapply(conts, function(x){x@bbox[2,]})
+  xmn <- min(x_pts[1,]); xmx <- max(x_pts[2,])
+  ymn <- min(y_pts[1,]); ymx <- max(y_pts[2,])
   
   n_poss <- 0
-  pts_per_dir_init <- pts_per_dir
-  while(n_poss < 1) {
-    #grid over space, points in center of grid
-    x_length_init <- (xmx - xmn)
-    x_mid_init <- x_length_init/2
-    y_length_init <- (ymx - ymn)
-    y_mid_init <- y_length_init/2
+  #grid over space, points in center of grid
+  x_length_init <- (xmx - xmn)
+  x_mid_init <- xmn + x_length_init/2
+  y_length_init <- (ymx - ymn)
+  y_mid_init <- ymn + y_length_init/2
+  pts_per_dir_init <- max(c(ceiling(x_length_init/.05), c(y_length_init/.05)))
+  no_change <- 0
+  while(n_poss < 10) { #want at least 15 initial test points within contours
     C_poss <- SpatialPoints(pts_in_box(xmid = x_mid_init, ymid = y_mid_init, 
                                        x_length = x_length_init, 
                                        y_length = y_length_init,
-                                       pts_per_dir = pts_per_dir))
-    
-    #restrict set of points to test those points that are in every contour
-    if (length(conts) > 1) {
-      C_in_cont <- sapply(conts, function(x){gIntersects(C_poss, x, byid = TRUE)})
-      keep <- apply(C_in_cont, 1, function(x){all(x)})
-    } else {
-      C_in_cont <- gIntersects(C_poss, conts, byid = TRUE)
-      keep <- which(C_in_cont)
-    }
-    C_poss <- C_poss[keep]
-    
-    #restrict set of points to contours not touching the edge itself
-    if (length(conts) > 1) {
-      #cont_lines <- lapply(conts, function(x){as(x, "SpatialLines")})
-      #C_on_edge <- lapply(cont_lines)
-    } else {
-      cont_line <- as(conts, "SpatialLines")
-      C_on_edge <- gIntersects(C_poss, cont_line, byid = TRUE)
-      keep <- which(!C_on_edge)
-    }
-    C_poss <- C_poss[keep]
+                                       pts_per_dir = pts_per_dir_init))
+    C_poss <- valid_loc_C(C_poss, conts)
     
     #check if grid had valid points. If not, try again with finer scale 
     n_poss <- nrow(C_poss@coords)
-    pts_per_dir <- pts_per_dir + 5
+    pts_per_dir_init <- pts_per_dir_init + init_step
   }
   
   #find x_length and y_length of each grid box
-  x_length <- x_length_init/pts_per_dir
-  y_length <- y_length_init/pts_per_dir
+  pts_per_dir_init <- pts_per_dir_init - init_step
+  x_length <- x_length_init/pts_per_dir_init
+  y_length <- y_length_init/pts_per_dir_init
   
-  #return to original spacing
-  pts_per_dir <- pts_per_dir_init
+  max_err_area <- 1
+  max_err_area_last <- 2
   
-  max_err_area <- max_err_area_last <- area_tol + .01
   while (max_err_area > area_tol) {
     
     #Compute areas in error for each C
     n_poss <- nrow(C_poss@coords)
     err_area <- apply(C_poss@coords, 1, 
                       function(x){error_areas(conts = conts, C = as.vector(x),
-                                              thetas = thetas)})
-    err_area <- matrix(data = err_area, nrow = length(conts))
+                                              thetas = thetas, under = under)})
     #Find point that minimizes the maximum area in error
     max_err_area_poss <- apply(err_area, 2, max)
     max_err_area <- min(max_err_area_poss)
@@ -244,30 +258,10 @@ best_C <- function(bd, conts, thetas, area_tol, pts_per_dir = 10,
     C_keep <- C_poss[which.min(max_err_area_poss)]
     C_poss <- SpatialPoints(pts_in_box(xmid = C_keep@coords[1], 
                                        ymid = C_keep@coords[2], 
-                                       x_length = 4*x_length,
-                                       y_length = 4*y_length,
+                                       x_length = 3*x_length,
+                                       y_length = 3*y_length,
                                        pts_per_dir = pts_per_dir))
-    
-    #restrict set of points to test those points that are in every contour
-    if (length(conts) > 1) {
-      C_in_cont <- sapply(conts, function(x){gIntersects(C_poss, x, byid = TRUE)})
-      keep <- apply(C_in_cont, 1, function(x){all(x)})
-    } else {
-      C_in_cont <- gIntersects(C_poss, conts, byid = TRUE)
-      keep <- which(C_in_cont)
-    }
-    C_poss <- C_poss[keep]
-    
-    #restrict set of points to contours not touching the edge itself
-    if (length(conts) > 1) {
-      #cont_lines <- lapply(conts, function(x){as(x, "SpatialLines")})
-      #C_on_edge <- lapply(cont_lines)
-    } else {
-      cont_line <- as(conts, "SpatialLines")
-      C_on_edge <- gIntersects(C_poss, cont_line, byid = TRUE)
-      keep <- which(!C_on_edge)
-    }
-    C_poss <- C_poss[keep]
+    C_poss <- valid_loc_C(C_poss, conts)
     
     #find x_length and y_length of each grid box
     x_length <- x_length/pts_per_dir
@@ -275,9 +269,12 @@ best_C <- function(bd, conts, thetas, area_tol, pts_per_dir = 10,
     
     #stop loop if small enough C cannot be found
     if (abs(max_err_area - max_err_area_last) < min_change) {
-      print("C with small enough error not found")
-      return(C_keep@coords)
-    } 
+      no_change <- no_change + 1
+      if (no_change >= 3) {
+        print("C with small enough error not found")
+        return(C_keep@coords)
+      }
+    }
     max_err_area_last <- max_err_area
     
     print(sprintf("max area in error for C: %s", max_err_area))
@@ -293,16 +290,17 @@ best_C <- function(bd, conts, thetas, area_tol, pts_per_dir = 10,
 #' @param area_tol maximum allowable area not represented
 #' @param p initial value of p 
 #' @param red_prop proportion to reduce p at each step
-reduce_p <- function(C, conts, area_tol, p, red_prop) {
-  p_last <- p
+#' @param under boolean indicating approach if more than one point
+reduce_p <- function(C, conts, area_tol, p, red_prop, under = TRUE) {
   max_err_area <- area_tol - .01
   while (max_err_area < area_tol) {
     p_last <- p
+    p <- floor((1 - red_prop)*p)
     theta_space <- 2*pi/p
     thetas <- seq(theta_space/2, 2*pi, theta_space)
-    err_area <- error_areas(conts = conts, C = C, thetas = thetas)
+    err_area <- error_areas(conts = conts, C = C, thetas = thetas, 
+                            under = under)
     max_err_area <- max(err_area)
-    p <- floor((1 - red_prop)*p)
     print(sprintf("max area in error with p = %i: %s", p, max_err_area))
   }
   return(p_last)
