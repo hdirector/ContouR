@@ -46,11 +46,10 @@ gen_misspec <- function(n_sim, mu, kappa, sigma, C, thetas,  r1_min,
     n_curl <- sample(n_curl_min:n_curl_max, 1)
     
     if (n_curl > 0) {
+      #where to start extension 
       start_ind <- sample(1:p, 1)
-      r1 <- max(y_sim) +  runif(1, r1_min, r1_max)
-      r2 <- max(y_sim) + runif(1, r2_min, r2_max)
       
-      ###add curled extension
+      ###indices of curled extension
       before_pts <- t(coords_temp[,1:start_ind,i])
       if (start_ind != p) {
         n_end <- start_ind + n_curl
@@ -65,8 +64,18 @@ gen_misspec <- function(n_sim, mu, kappa, sigma, C, thetas,  r1_min,
         back <- c(p, 1:n_curl)
         forw <- n_curl:1
       }
+      
+      #new radii 
+      r2 <- max(y_sim[back, i]) + runif(1, r2_min, r2_max)
+      if (length(forw) > 1) {
+        r1 <- max(y_sim[forw, i]) + runif(1, r1_min, r1_max)
+      } else {
+        r1 <- y_sim[forw, i]
+      }
+      
+      #extended points
       back_pts <- cbind(r2*cos(thetas[back]) + C[1], r2*sin(thetas[back]) + C[2])
-      forw_pts <- cbind(r1*cos(thetas[forw]) + C[1],r1*sin(thetas[forw]) + C[2])
+      forw_pts <- cbind(r1*cos(thetas[forw]) + C[1], r1*sin(thetas[forw]) + C[2])
       
       #put together component sections
       if (start_ind != p) {
