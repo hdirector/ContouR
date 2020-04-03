@@ -18,19 +18,38 @@ diff_reg <- function(poly1, poly2) {
 #' Assess the extent to which a polygon is star-shaped
 
 #' @param cont \code{SpatialPolygons} object to assess
-#' @param C vector of length two giving the coordinates of the center
-#' points of the polygon approximation 
+#' @param C_under vector of length two giving the coordinates of the center
+#' points of the under polygon approximation 
+#' @param C_over vector of length two giving the coordinates of the center
+#' points of the over polygon approximation 
 #' @param theta angles of the lines l from which the star-shaped polygon will be
 #' formed 
 #' @param r max length of lines in l
-assess_star <- function(cont, C, theta, r = 5) {
-  l <- make_l(C, theta, r = 5)
-  u_approx <- make_poly(pts_on_l(l = l, cont = cont, under = TRUE), "u_approx")
-  o_approx <- make_poly(pts_on_l(l = l, cont = cont, under = FALSE), "o_approx")
+assess_star <- function(cont, C_under, C_over, thetas, r = 5) {
+  l_under <- make_l(C_under, thetas, r = 5)
+  l_over <- make_l(C_over, thetas, r = 5)
+  u_approx <- make_poly(pts_on_l(l = l_under, cont = cont, under = TRUE), 
+                        "u_approx")
+  o_approx <- make_poly(pts_on_l(l = l_over, cont = cont, under = FALSE), 
+                        "o_approx")
+  
+  #under approximation error
   u_error <- diff_reg(cont, u_approx)
+  if (!is.null(u_error)) {
+    u_area <- gArea(u_error)
+  } else {
+    u_area <- 0
+  }
+  
+  #over approximation error
   o_error <- diff_reg(cont, o_approx) 
-  u_area <- gArea(u_error)
-  o_area <- gArea(o_error)
+  if (!is.null(o_error)) {
+    o_area <- gArea(o_error)
+  } else {
+    o_area <- 0
+  }
+  
+  #total area
   tot_area <- gArea(cont)
   return(list("u_approx" = u_approx, "o_approx" = o_approx,
               "u_error"  = u_error, "o_error" = o_error,
