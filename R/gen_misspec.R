@@ -14,10 +14,11 @@
 #' @param n_curl_max maximum number of spokes to skip over, must be less than p
 #' @param bd n x 2 matrix of the n coordinates describing the boundary 
 #' around region 
+#' @param rand_loc indicator if appendage should be at random location
 #' @export
 gen_misspec <- function(n_sim, mu, kappa, sigma, C, thetas,  r1_min, 
                         r1_max, r2_min, r2_max, n_curl_min, n_curl_max, 
-                        bd = NULL) {
+                        bd = NULL, rand_loc = TRUE) {
   #checks
   stopifnot(r1_min <= r1_max)
   stopifnot(r2_min <= r2_max)
@@ -47,7 +48,11 @@ gen_misspec <- function(n_sim, mu, kappa, sigma, C, thetas,  r1_min,
     
     if (n_curl > 0) {
       #where to start extension 
-      start_ind <- sample(1:p, 1)
+      if (rand_loc) {
+        start_ind <- sample(1:p, 1)
+      } else {
+        start_ind <- floor(p/2)
+      }
       
       ###indices of curled extension
       before_pts <- t(coords_temp[,1:start_ind,i])
