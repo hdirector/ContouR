@@ -165,7 +165,6 @@ int_half_plane <- function(p1, p2, poly, box) {
 #' column giving y-coordinates
 find_kernel <- function(coords) {
   n_pts <- nrow(coords)
- # stopifnot(any(coords[1,] != coords[n_pts]))
   bb <- bbox()
   poly_curr <- make_poly(coords, "poly")
   
@@ -176,9 +175,12 @@ find_kernel <- function(coords) {
   for (i in 1:(n_pts - 1)) {
     temp_half_plane <- int_half_plane(p1 = coords[i,], p2 = coords[i + 1,], 
                                       poly = poly_curr, box = bb)
-    kernel <- keep_poly(gIntersection(kernel, temp_half_plane))
-    
-    if (is.null(kernel)) {return(NULL)}
+    kernel <- gIntersection(kernel, temp_half_plane)
+    #polygon has basically become a point, return it 
+    #(otherwise will end up with tiny intersections due to computation)
+    if (gArea(kern) < 1e-4) {
+      return(kern)
+    }
   }
   return(kernel)
 }
@@ -186,66 +188,71 @@ find_kernel <- function(coords) {
 
 
 #' Find the observed intersection kernel of a set of contours
-#' @param obs_coords array giving the coordinates of the observations, 
-#' dimension of 2 x number of points x number of samples
+#' @param obs_coords list giving the coordinates of the observations
+#' each item corresponds to a contour and has dimension number of points x 2
 #' @export
 find_inter_kernel <- function(obs_coords) {
-  n_obs <- dim(obs_coords)[3]
+  n_obs <- length(obs_coords)
   for (i in 1:n_obs) {
-     kern_curr <- find_kernel(coords = rbind(t(obs_coords[,,i]),
-                                             t(obs_coords[,1,i])))
+     kern_curr <- find_kernel(coords = rbind(obs$coords[[i]],
+                                             obs$coords[[i]][1,]))
     if (i == 1) {
       kern <- kern_curr
     } else {
       kern <- gIntersection(kern, kern_curr)
     }
+    
+     #polygon has basically become a point, return it 
+     #(otherwise will end up with tiny intersections due to computation)
+     if (gArea(kern) < 1e-4) {
+       return(kern)
+     }
   }
-  kern_pts <- t(kern@polygons[[1]]@Polygons[[1]]@coords)
-  return(list("coords" = kern_pts, "poly" = kern))
+  return(kern)
 }
 
 
-#' Make a 
-#' @param center coordinates of center point 
-#' @param n_lines how many fixed lines should be made
-#' @param bounds coordinates of the boundary of the region in an n x 2 matrix, 
-#' typically forming a rectangle
-#' @importFrom rgeos gIntersection
-fixed_lines <- function(center, n_lines,  
-                        bounds = rbind(c(0, 0), c(0, 1), c(1, 1), c(1, 0))) {
-  #Make a large upper bound for how far the radius should extend
-  r <- max(dist(bounds)) + 2
-  #generate testing lines
-  theta <- seq(0, 2*pi, length = n_lines + 1)
-  theta <- theta[1:n_lines]
-  bd_pts <- cbind(center[1] + r*cos(theta), center[2] + r*sin(theta))
-  lines <- apply(bd_pts, 1, function(w){make_line(p1 = center, 
-                                                   p2 = w, "line")})
-  return(lines)
-}
+#' #' Make a 
+#' #' @param center coordinates of center point 
+#' #' @param n_lines how many fixed lines should be made
+#' #' @param bounds coordinates of the boundary of the region in an n x 2 matrix, 
+#' #' typically forming a rectangle
+#' #' @importFrom rgeos gIntersection
+#' fixed_lines <- function(center, n_lines,  
+#'                         bounds = rbind(c(0, 0), c(0, 1), c(1, 1), c(1, 0))) {
+#'   #Make a large upper bound for how far the radius should extend
+#'   r <- max(dist(bounds)) + 2
+#'   #generate testing lines
+#'   theta <- seq(0, 2*pi, length = n_lines + 1)
+#'   theta <- theta[1:n_lines]
+#'   bd_pts <- cbind(center[1] + r*cos(theta), center[2] + r*sin(theta))
+#'   lines <- apply(bd_pts, 1, function(w){make_line(p1 = center, 
+#'                                                    p2 = w, "line")})
+#'   return(lines)
+#' }
 
-#' Find the length on a 
-#' @param obs \code{SpatialPolygons} object giving the observed polygon
-#' @param lines a list of the fixed lines where each line is represented as
-#' a \code{SpatialLines} object
-#' @param center coordinates of center point 
-length_on_fixed <- function(obs, lines, center) {
-  obs_line <- as(obs, "SpatialLines")
-  n_lines <- length(lines)
-  lengths <- rep(NA, n_lines)
-  for (i in 1:n_lines) {
-    temp <- gIntersection(lines[[i]], obs_line)
-    #pull out coordinates
-    if (is(temp)[1] == "SpatialLines") { #unusual case
-      temp <- temp@lines[[1]]@Lines[[1]]@coords
-    } else { #typical case
-      temp <- temp@coords
-    }
-    temp <- temp[which.max(apply(temp, 1, function(x){get_dist(x, center)})),]
-    lengths[i] <- get_dist(temp, center)
-  }
-  return(lengths)  
-}
+#' #' Find the length on a 
+#' #' @param obs \code{SpatialPolygons} object giving the observed polygon
+#' #' @param lines a list of the fixed lines where each line is represented as
+#' #' a \code{SpatialLines} object
+#' #' @param center coordinates of center point 
+#' length_on_fixed <- function(obs, lines, center) {
+#'   obs_line <- as(obs, "SpatialLines")
+#'   n_lines <- length(lines)
+#'   lengths <- rep(NA, n_lines)
+#'   for (i in 1:n_lines) {
+#'     temp <- gIntersection(lines[[i]], obs_line)
+#'     #pull out coordinates
+#'     if (is(temp)[1] == "SpatialLines") { #unusual case
+#'       temp <- temp@lines[[1]]@Lines[[1]]@coords
+#'     } else { #typical case
+#'       temp <- temp@coords
+#'     }
+#'     temp <- temp[which.max(apply(temp, 1, function(x){get_dist(x, center)})),]
+#'     lengths[i] <- get_dist(temp, center)
+#'   }
+#'   return(lengths)  
+#' }
 
 
 #' Find distance between two points
@@ -256,37 +263,37 @@ get_dist <- function(p1, p2) {
 }
   
 
-#' Compute the \eqn{p} points parallel to the generating line
-#' @param poly \code{SpatialPolygons} object 
-#' @param p number of generating lines
-#' @param center vector of x and y coordinate of center point
-#' @param r max length line could extend
-paral_pts <- function(p, poly, center, r = 10) {
-  line <- as(poly, "SpatialLines")
-  theta_space <- 2*pi/p
-  theta <- seq(theta_space/2, 2*pi, by = theta_space)
-  outer_pts <- cbind(center[1] + r*cos(theta), center[2] + r*sin(theta))
-  gen_lines <- apply(outer_pts, 1, function(x){make_line(p1 = rbind(x, center), 
-                                                  name =  "spoke")})
-  pts <- sapply(gen_lines, function(x){gIntersection(x, line)})
-  pts <- sapply(pts, function(x){x@coords})
-  return(pts)
-}
+#' #' Compute the \eqn{p} points parallel to the generating line
+#' #' @param poly \code{SpatialPolygons} object 
+#' #' @param p number of generating lines
+#' #' @param center vector of x and y coordinate of center point
+#' #' @param r max length line could extend
+#' paral_pts <- function(p, poly, center, r = 10) {
+#'   line <- as(poly, "SpatialLines")
+#'   theta_space <- 2*pi/p
+#'   theta <- seq(theta_space/2, 2*pi, by = theta_space)
+#'   outer_pts <- cbind(center[1] + r*cos(theta), center[2] + r*sin(theta))
+#'   gen_lines <- apply(outer_pts, 1, function(x){make_line(p1 = rbind(x, center), 
+#'                                                   name =  "spoke")})
+#'   pts <- sapply(gen_lines, function(x){gIntersection(x, line)})
+#'   pts <- sapply(pts, function(x){x@coords})
+#'   return(pts)
+#' }
 
-#' Compute lengths of lines from a point C to the edge of a polygon
-#' @param p number of lines
-#' @param poly \code{SpatialPolygons} object 
-#' @param center vector of length 2 giving points of C
-#' @param r maximum radius to consider
-#' @export
-paral_lengths <- function(p, poly, C, r = 10) {
-  theta_space <- 2*pi/p
-  thetas <- seq(theta_space/2, 2*pi, by = theta_space)
-  outer <- cbind(C[1] + r*cos(thetas), C[2] + r*sin(thetas))
-  lines <- apply(outer, 1, function(x){make_line(x, C, "ID")})
-  mu <- sapply(lines, function(x){SpatialLinesLengths(gIntersection(poly, x))})
-  return(mu)
-} 
+#' #' Compute lengths of lines from a point C to the edge of a polygon
+#' #' @param p number of lines
+#' #' @param poly \code{SpatialPolygons} object 
+#' #' @param center vector of length 2 giving points of C
+#' #' @param r maximum radius to consider
+#' #' @export
+#' paral_lengths <- function(p, poly, C, r = 10) {
+#'   theta_space <- 2*pi/p
+#'   thetas <- seq(theta_space/2, 2*pi, by = theta_space)
+#'   outer <- cbind(C[1] + r*cos(thetas), C[2] + r*sin(thetas))
+#'   lines <- apply(outer, 1, function(x){make_line(x, C, "ID")})
+#'   mu <- sapply(lines, function(x){SpatialLinesLengths(gIntersection(poly, x))})
+#'   return(mu)
+#' } 
   
   
   
