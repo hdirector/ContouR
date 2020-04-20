@@ -27,6 +27,8 @@ cred_regs <- function(prob, cred_eval, nrows, ncols) {
 #' @param ncols number of columns in grid
 #' @param r maximum radius to make test lines
 #' @param plotting boolean indicating if plots should be made
+#' @land land polygons for sea ice plots
+#' @not_reg polygons outside region for sea ice plots
 #' @param tol below what distance should a point be considered to intersect
 #' with another point or line
 #' @return vector of booleans indicating if crossing was in the credible interval
@@ -35,7 +37,8 @@ cred_regs <- function(prob, cred_eval, nrows, ncols) {
 #' @export
 #' @details boundary must be a  least one pixel wide to work
 eval_cred_reg <- function(truth, cred_reg, center, thetas, nrows, ncols, r = 5, 
-                          plotting = FALSE, tol = 1e-4) {
+                          plotting = FALSE, land = NULL, not_reg = NULL,
+                          tol = 1e-4) {
   #convert polygon to SpatialLines object
   truth <- as(truth, "SpatialLines")
   
@@ -47,8 +50,17 @@ eval_cred_reg <- function(truth, cred_reg, center, thetas, nrows, ncols, r = 5,
   #test coverage
   cover <- rep(FALSE, p_eval)
   if (plotting) {
-    plot(cred_reg, xlim = c(0, 1), ylim = c(0, 1), col = 'grey', 
+    box <- bbox(0)
+    plot(cred_reg, xlim = c(0, 1), ylim = c(0, 1), col = 'lightcyan2', 
          border = "white")
+    if (!is.null(not_reg)) {
+      plot(not_reg, col = 'beige', add = TRUE, border= 'beige')
+    }
+    if (!is.null(land)) {
+      for (i in 1:length(land)) {
+        plot(land[[i]], add = T, col = 'grey', border = 'grey')
+      }
+    }
     plot(truth, add = T, col = 'red', lwd = 1)
   }
   for (i in 1:p_eval) {
@@ -63,9 +75,9 @@ eval_cred_reg <- function(truth, cred_reg, center, thetas, nrows, ncols, r = 5,
     }
     if (plotting) {
       if (cover[i]) {
-        plot(in_cred_seg, add = T, pch = 20, cex = .5)
+        plot(in_cred_seg, add = T, pch = 20, cex = .25, col = 'black')
       } else {
-        plot(in_cred_seg, col = 'blue', add = T, pch = 20, cex = .5)
+        plot(in_cred_seg, col = 'blue', add = T, pch = 20, cex = .25)
       }
       points(matrix(center, ncol = 2), pch = 3, col = 'darkgreen', cex = 1, 
              lwd = 2)
