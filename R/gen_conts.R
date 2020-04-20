@@ -8,19 +8,33 @@
 #' @param bd n x 2 matrix of the n coordinates describing the boundary 
 #' around region 
 #' @export
-gen_conts <- function(n_sim, mu, kappa, sigma, C, thetas, bd = NULL) {
+gen_conts <- function(n_sim, mu, kappa, sigma, C, thetas, bd = NULL,
+                      fix_ind = NULL, rand_ind = NULL,fix_y = NULL, fix_thetas ) {
   #preliminary
   p <- length(mu)
+  if (!is.null(fix_ind)) {
+    p_all <-  length(fix_ind) + length(rand_ind)
+  } else {
+    p_all <- p
+  }
   theta_dist <- theta_dist_mat(thetas)
   Sigma <- compSigma(sigma, kappa, theta_dist)
 
   #Simulate parallel points
-  y_sim <-  matrix(t(mvrnorm(n_sim, mu, Sigma)), ncol = n_sim)
+  if (!is.null(fix_ind)) {
+    y_sim <- matrix(nrow = p_all, ncol = n_gen, data = NA)
+    y_sim[rand_ind,] <-  matrix(t(mvrnorm(n_sim, mu, Sigma)), ncol = n_sim)
+    y_sim[fix_ind,] <- fix_y
+  } else {
+    y_sim <-  y_sim <-  matrix(t(mvrnorm(n_sim, mu, Sigma)), ncol = n_sim)
+  }
   y_sim[y_sim < 0] <- 1e-5 #no negative lengths
-  coords_temp <- array(dim = c(2, p, n_sim))
+  
+   
+  coords_temp <- array(dim = c(2, p_all, n_sim))
   coords_temp[1,,] <- y_sim*cos(thetas) + C[1]
   coords_temp[2,,] <- y_sim*sin(thetas) + C[2]
-  
+
   #reformat and interpolate along boundary if needed
   coords <- list()
   for (i in 1:n_sim) {
