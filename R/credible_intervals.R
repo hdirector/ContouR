@@ -56,12 +56,6 @@ eval_cred_reg <- function(truth, cred_reg, center, thetas, nrows, ncols, r = 5,
     if (!is.null(not_reg)) {
       plot(not_reg, col = 'beige', add = TRUE, border= 'beige')
     }
-    if (!is.null(land)) {
-      for (i in 1:length(land)) {
-        plot(land[[i]], add = T, col = 'grey', border = 'grey')
-      }
-    }
-    plot(truth, add = T, col = 'red', lwd = 1)
   }
   for (i in 1:p_eval) {
     test_line <- make_line(p1 = center, p2 = c(x[i], y[i]), "test")
@@ -75,13 +69,21 @@ eval_cred_reg <- function(truth, cred_reg, center, thetas, nrows, ncols, r = 5,
     }
     if (plotting) {
       if (cover[i]) {
-        plot(in_cred_seg, add = T, pch = 20, cex = .25, col = 'black')
+        plot(in_cred_seg, add = T, cex = 1, pch = 20, col = 'black', lwd = 1)
       } else {
-        plot(in_cred_seg, col = 'blue', add = T, pch = 20, cex = .25)
+        plot(in_cred_seg, col = 'blue', add = T, pch = 20, lwd = 1)
       }
-      points(matrix(center, ncol = 2), pch = 3, col = 'darkgreen', cex = 1, 
+      points(matrix(center, ncol = 2), pch = 3, col = 'darkgreen', 
              lwd = 2)
     }
+  }
+  if (plotting) {
+    if (!is.null(land)) {
+      for (i in 1:length(land)) {
+        plot(land[[i]], add = T, col = 'grey', border = 'grey')
+      }
+    }
+    plot(truth, add = T, col = 'red', lwd = 1)
   }
   return(as.numeric(cover))
 }
