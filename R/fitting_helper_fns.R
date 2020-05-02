@@ -26,30 +26,30 @@ theta_dist_mat <- function(thetas) {
   return(dist_mat)
 }
 
-#' rescale a set of coordinates to be in the box [0, 1] x [0, 1] with some 
+#' rescale a set of coordinates to be in the box [0, 1] x [0, 1] with some
 #' buffer space
 #' @param coords list of sets of matrix of coordinates to rescale together
 #' @param eps how much buffer space to leave with bounds of box
 #' @param box_size current size of square grid boxes
 #' @param land list of coordinates of the land points
 #' @param grid matrix of grid points that should be rescaled and
-#' extraneous points removed 
+#' extraneous points removed
 #' @param bd coordinates of region boundary to rescale
-rescale <- function(coords, eps, box_size, land = NULL, grid = NULL, 
+rescale <- function(coords, eps, box_size, land = NULL, grid = NULL,
                     bd = NULL) {
   #need a reasonable buffer length
   stopifnot(eps < .5)
-  
+
   #x range
   xmx <- max(sapply(coords, function(x){max(x[,1])}))
-  xmn <- min(sapply(coords, function(x){min(x[,1])})) 
-  x_delta <- xmx - xmn 
-  
+  xmn <- min(sapply(coords, function(x){min(x[,1])}))
+  x_delta <- xmx - xmn
+
   #y-range
   ymx <- max(sapply(coords, function(x){max(x[,2])}))
-  ymn <- min(sapply(coords, function(x){min(x[,2])})) 
-  y_delta <- ymx - ymn 
-  
+  ymn <- min(sapply(coords, function(x){min(x[,2])}))
+  y_delta <- ymx - ymn
+
   #rescale and shift
   coords_scale <-  lapply(coords, function(x){
                               eps + (1 - 2*eps)*cbind((x[,1] - xmn)/x_delta,
@@ -63,7 +63,7 @@ rescale <- function(coords, eps, box_size, land = NULL, grid = NULL,
   } else {
     land_scale <- NULL
   }
-  
+
  #rescale and shift grid                                                                                                (x[,2] - ymn)/y_delta)})
   if (!is.null(grid)) {
     keep <- apply(grid, 1, function(x){(x[1] >= xmn) & (x[1] <= xmx) &
@@ -74,7 +74,7 @@ rescale <- function(coords, eps, box_size, land = NULL, grid = NULL,
   } else {
     grid_scale <- NULL
   }
- 
+
   #rescale and shift boundary
   if (!is.null(bd)) {
     bd_scale <- eps + (1 - 2*eps)*cbind((bd[,1] - xmn)/x_delta,
@@ -82,16 +82,16 @@ rescale <- function(coords, eps, box_size, land = NULL, grid = NULL,
   } else {
     bd_scale <- NULL
   }
-  
-  
-  
+
+
+
   #compute size of grid boxes in x and y
   box_size <- (1 - 2*eps)*box_size/c(x_delta, y_delta)
-  
+
   return(list("coords_scale" = coords_scale, "land_scale" = land_scale,
-              "grid_scale" = grid_scale,"bd_scale" = bd_scale, 
+              "grid_scale" = grid_scale,"bd_scale" = bd_scale,
               "box_size" = box_size))
-} 
+}
 
 
 #' Make a set lines to map on l
@@ -111,10 +111,12 @@ make_l <- function(C, theta, r = 5) {
 #' @param under boolean indicating approach if more than one point
 #' @details If \code{under = TRUE}, if there is more than one point on line l,
 #' than the closest point to the center point is recorded. Otherwise, the
-#' farthest point to the center point is recorded  
+#' farthest point to the center point is recorded
 pts_on_l <- function(l, cont, under) {
   stopifnot(is.logical(under))
   on_l <- lapply(l, function(x){gIntersection(x, cont)})
+  on_l <- on_l[!sapply(on_l, is.null)]
+  on_l <- on_l[sapply(on_l, function(x){is(x)[1] == "SpatialLines"})]
   n_l <- length(l)
   if (under) { #find the second point of the first line (first point is center)
     pts_on_l <- t(sapply(on_l, function(x){x@lines[[1]]@Lines[[1]]@coords[2,]}))
@@ -159,11 +161,11 @@ error_areas <- function(conts, C, thetas, under = TRUE) {
     } else {
       cont_j <- conts
     }
-    
+
     #make approximate polygon
     pts_on_l_j <- pts_on_l(l = l, cont = cont_j, under = under)
     poss_j <- make_poly(pts_on_l_j, "test_cont")
-    
+
     #compute area in error
     diff_reg1 <- gDifference(poss_j, cont_j)
     diff_reg2 <- gDifference(cont_j, poss_j)
@@ -177,14 +179,53 @@ error_areas <- function(conts, C, thetas, under = TRUE) {
       areas[j] <- 0
     }
   }
-  
+
   return(areas)
+}
+
+#' Find estimate for C and p
+#' @param conts list with items \code{polys} and \code{coords} giving the contouors
+#' @param delta proportion of average area included in polygon
+#' @param p_init initial number of lines
+#' @param space spacing of test center points
+#' @param step proportion to increase number of lines on each iteration
+#' @param misspec indicator of whether contours are not exactly star-shaped,
+#'  defaults to \code{TRUE}
+#' @param under boolean indicating approach if more than one point
+#' @return list with elements
+find_CP <- function(conts, delta, p_init, space, step, misspec = TRUE, 
+                    parallel = FALSE, under = TRUE) {
+  area_tol <- delta*mean(sapply(conts$polys, gArea))
+  if (!misspec) {
+    int_kern <- find_inter_kernel(obs_coords = conts$coords)
+    print("found kernel")
+  }
+  area_err <- 2*area_tol
+  p_est <- p_init
+  while (area_err > area_tol) {
+    p_last <- p_est
+    theta_space_est <- 2*pi/p_est
+    thetas_est <- seq(theta_space_est/2, 2*pi, theta_space_est)
+    if (misspec) {
+      C_est <- best_C(bd = bd, conts = conts$polys, thetas = thetas_est,
+                      space = space, parallel = parallel)
+    } else {
+      C_est <- best_C(bd = bd, conts = conts$polys, thetas = thetas_est,
+                      space = space, kern = int_kern, parallel = parallel)
+    }
+    area_err <- mean(error_areas(conts = conts$polys, C = C_est,
+                                 thetas = thetas_est, under = under))
+    print(sprintf("p_est = %i, C_est = (%f, %f), area_err = %f", p_est, 
+                  C_est[1], C_est[2], area_err))
+    p_est <- floor((1 + step)*p_last)
+  }
+  return(list("C_est" = C_est, "thetas_est" = thetas_est, "p_est" = p_last))
 }
 
 #' Find which points are in interior of all contours
 #' @param C_poss points to test as a \code{SpatialPolygons} object
 #' @param conts list of contours as \code{SpatialPolygons} objects
-#' @param kern SpatialPolygons object giving areas that are potentially 
+#' @param kern SpatialPolygons object giving areas that are potentially
 #' the kernel
 valid_loc_C <- function(C_poss, conts, kern = NULL) {
   if (is.null(kern)) {
@@ -201,20 +242,6 @@ valid_loc_C <- function(C_poss, conts, kern = NULL) {
       keep <- gIntersects(C_poss, kern, byid = TRUE)
       C_poss <- C_poss[keep]
   }
-  
-  # #remove points on boundary itself
-  # if (length(conts) > 1) {
-  #   cont_lines <- lapply(conts, function(x){as(x, "SpatialLines")})
-  #   C_on_edge <- sapply(cont_lines, function(x){gIntersects(C_poss, x,
-  #                                                           byid = TRUE)})
-  #   keep <- which(!apply(C_on_edge, 1, function(x){any(x)}))
-  # } else {
-  #   cont_line <- as(conts, "SpatialLines")
-  #   C_on_edge <- gIntersects(C_poss, cont_line, byid = TRUE)
-  #   keep <- which(!C_on_edge)
-  # }
-  # C_poss <- C_poss[keep]
-  # 
   return(C_poss)
 }
 
@@ -226,9 +253,9 @@ valid_loc_C <- function(C_poss, conts, kern = NULL) {
 #' @param thetas the angles on which the lines will be specified
 #' @param space spacing of tested points
 #' @param under boolean indicating approach if more than one point
-#' @param parallel boolean indicating if error_areas should be computed in 
+#' @param parallel boolean indicating if error_areas should be computed in
 #'  parallel
-#' @importFrom parallel detectCores makeCluster clusterEvalQ clusterExport 
+#' @importFrom parallel detectCores makeCluster clusterEvalQ clusterExport
 #'  parApply stopCluster
 #' @export
 best_C <- function(bd, conts, thetas, space, kern = NULL, under = TRUE,
@@ -236,10 +263,10 @@ best_C <- function(bd, conts, thetas, space, kern = NULL, under = TRUE,
   if (is.null(kern)) {
     #set up grid of possible points
     bbs <- lapply(conts, function(x){x@bbox})
-    xmn <- min(sapply(bbs, function(x){x[1,1]})) 
+    xmn <- min(sapply(bbs, function(x){x[1,1]}))
     xmx <- max(sapply(bbs, function(x){x[1,2]})) 
     ymn <- min(sapply(bbs, function(x){x[2,1]})) 
-    ymx <- max(sapply(bbs, function(x){x[2,2]}))   
+    ymx <- max(sapply(bbs, function(x){x[2,2]}))
     x_pts <- seq(xmn + space/2, xmx, by = space)
     y_pts <- seq(ymn + space/2, ymx, by = space)
     C_poss <- SpatialPoints(expand.grid(x_pts, y_pts))
@@ -247,20 +274,25 @@ best_C <- function(bd, conts, thetas, space, kern = NULL, under = TRUE,
   } else {
     xmn <- kern@bbox[1, 1]
     xmx <- kern@bbox[1, 2]
-    ymn <- kern@bbox[2, 1]
-    ymx <- kern@bbox[2, 2]
-    x_pts <- seq(xmn, xmx, by = space)
-    y_pts <- seq(ymn, ymx, by = space)
-    C_poss <- SpatialPoints(expand.grid(x_pts, y_pts))
-    C_poss <- valid_loc_C(C_poss, conts, kern)
+    ymn <- kern@bbox[2, 1] 
+    ymx <- kern@bbox[2, 2] 
+    n_poss <- 0
+    while (n_poss <= 10) {
+      x_pts <- seq(xmn, xmx, by = space)
+      y_pts <- seq(ymn, ymx, by = space)
+      C_poss <- SpatialPoints(expand.grid(x_pts, y_pts))
+      C_poss <- valid_loc_C(C_poss, conts, kern)
+      n_poss <- nrow(C_poss@coords)
+      space <- .95*space
+    }
   }
   if (parallel) {
-    n_cores <- detectCores() 
+    n_cores <- detectCores()
     cl <- makeCluster(n_cores - 1)
     clusterEvalQ(cl, library("ContouR"))
-    clusterExport(cl = cl, varlist = c("conts", "thetas", "under"), 
+    clusterExport(cl = cl, varlist = c("conts", "thetas", "under"),
                   envir = environment())
-    err_area <- parApply(cl, C_poss@coords, 1, 
+    err_area <- parApply(cl, C_poss@coords, 1,
                          function(x){error_areas(conts = conts, C = as.vector(x),
                                                  thetas = thetas, under = under)})
     stopCluster(cl)
@@ -269,36 +301,14 @@ best_C <- function(bd, conts, thetas, space, kern = NULL, under = TRUE,
                     function(x){error_areas(conts  = conts, C = as.vector(x),
                                             thetas = thetas, under = under)})
   }
-  
+
   #Find point that minimizes the maximum area in error
   mean_err_area_poss <- apply(err_area, 2, mean)
   mean_err_area <- min(mean_err_area_poss)
-  
+
   #make finer grid of points around best point
   C_keep <- C_poss[which.min(mean_err_area_poss)]
-  
+
   return(C_keep@coords)
 }
 
-#' Find number of lines that will keep error under an acceptable level
-#' @param C center point
-#' @param conts list of contours formatted as \code{SpatialPolygons} objects
-#' from which the model will be fit
-#' @param area_tol maximum allowable area not represented
-#' @param p initial value of p 
-#' @param red_prop proportion to reduce p at each step
-#' @param under boolean indicating approach if more than one point
-reduce_p <- function(C, conts, area_tol, p, red_prop, under = TRUE) {
-  max_err_area <- area_tol - .01
-  while (max_err_area < area_tol) {
-    p_last <- p
-    p <- floor((1 - red_prop)*p)
-    theta_space <- 2*pi/p
-    thetas <- seq(theta_space/2, 2*pi, theta_space)
-    err_area <- error_areas(conts = conts, C = C, thetas = thetas, 
-                            under = under)
-    max_err_area <- max(err_area)
-    print(sprintf("max area in error with p = %i: %s", p, max_err_area))
-  }
-  return(p_last)
-}
