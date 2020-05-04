@@ -228,19 +228,19 @@ find_CP <- function(conts, delta, p_init, space, step, misspec = TRUE,
 #' @param kern SpatialPolygons object giving areas that are potentially
 #' the kernel
 valid_loc_C <- function(C_poss, conts, kern = NULL) {
-  if (is.null(kern)) {
-    #remove points not in every contour
-    if (length(conts) > 1) {
-      C_in_cont <- sapply(conts, function(x){gIntersects(C_poss, x, byid = TRUE)})
-      keep <- apply(C_in_cont, 1, function(x){all(x)})
-    } else {
-      C_in_cont <- gIntersects(C_poss, conts, byid = TRUE)
-      keep <- which(C_in_cont)
-    }
+  #remove points not in every contour
+  if (length(conts) > 1) {
+    C_in_cont <- sapply(conts, 
+                        function(x){gContainsProperly(x, C_poss, byid = TRUE)})
+    keep <- apply(C_in_cont, 1, function(x){all(x)})
+  } else {
+    C_in_cont <- gIntersects(C_poss, conts, byid = TRUE)
+    keep <- which(C_in_cont)
+  }
+  C_poss <- C_poss[keep]
+  if (!is.null(kern)) {#remove points outside the estimated kernel 
+    keep <- gIntersects(kern, C_poss, byid = TRUE)
     C_poss <- C_poss[keep]
-  } else {#remove points outside the estimated kernel instead
-      keep <- gIntersects(C_poss, kern, byid = TRUE)
-      C_poss <- C_poss[keep]
   }
   return(C_poss)
 }
