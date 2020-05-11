@@ -49,7 +49,7 @@ bbox <- function(eps = 0) {
 #' make the plane
 #' @importFrom rgeos gDifference
 int_half_plane <- function(p1, p2, poly, box) {
-  eps <- 1e-5 #how close do values need to be to horizontal or vertical 
+  eps <- 1e-5 #how far away to set test point  
   ###vertical line
   if (p1[1] == p2[1]) {
     half_plane <- make_poly(rbind(c(p1[1], 0), c(p1[1], 1), c(1, 1), c(1, 0)), 
@@ -180,6 +180,9 @@ find_kernel <- function(coords) {
     temp_half_plane <- int_half_plane(p1 = coords[i,], p2 = coords[i + 1,], 
                                       poly = poly_curr, box = bb)
     if (gArea(temp_half_plane) > 1e-4) { #don't consider half planes on edge
+      if (suppressWarnings(!gIsValid(temp_half_plane))) {
+        temp_half_plane <- gSimplify(temp_half_plane, tol = 0)
+      }
       kernel <- gIntersection(kernel, temp_half_plane)
       if (suppressWarnings(!gIsValid(kernel))) { 
         if (is(kernel)[1] == "SpatialCollections") {
