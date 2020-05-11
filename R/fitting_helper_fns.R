@@ -159,7 +159,7 @@ error_areas <- function(conts, C, thetas, under = TRUE) {
     if (n_conts > 1) {
       cont_j <- conts[[j]]
     } else {
-      cont_j <- conts
+      cont_j <- conts[[1]]
     }
 
     #make approximate polygon
@@ -229,12 +229,12 @@ find_CP <- function(conts, delta, p_init, space, step, misspec = TRUE,
 #' the kernel
 valid_loc_C <- function(C_poss, conts, kern = NULL) {
   #remove points not in every contour
-  if (length(conts) > 1) {
+  if (length(conts) > 1 ) {
     C_in_cont <- sapply(conts, 
                         function(x){gContainsProperly(x, C_poss, byid = TRUE)})
     keep <- apply(C_in_cont, 1, function(x){all(x)})
   } else {
-    C_in_cont <- gIntersects(C_poss, conts, byid = TRUE)
+    C_in_cont <- gContainsProperly(conts[[1]], C_poss, byid = TRUE)
     keep <- which(C_in_cont)
   }
   C_poss <- C_poss[keep]
@@ -266,7 +266,7 @@ best_C <- function(bd, conts, thetas, space, kern = NULL, under = TRUE,
     xmn <- min(sapply(bbs, function(x){x[1,1]}))
     xmx <- max(sapply(bbs, function(x){x[1,2]})) 
     ymn <- min(sapply(bbs, function(x){x[2,1]})) 
-    ymx <- max(sapply(bbs, function(x){x[2,2]}))
+    ymx <- max(sapply(bbs, function(x){x[2,2]})) 
     x_pts <- seq(xmn + space/2, xmx, by = space)
     y_pts <- seq(ymn + space/2, ymx, by = space)
     C_poss <- SpatialPoints(expand.grid(x_pts, y_pts))
@@ -281,8 +281,11 @@ best_C <- function(bd, conts, thetas, space, kern = NULL, under = TRUE,
       x_pts <- seq(xmn, xmx, by = space)
       y_pts <- seq(ymn, ymx, by = space)
       C_poss <- SpatialPoints(expand.grid(x_pts, y_pts))
-      C_poss <- valid_loc_C(C_poss, conts, kern)
       n_poss <- nrow(C_poss@coords)
+      if (n_poss > 10) {
+        C_poss <- valid_loc_C(C_poss, conts, kern)
+        n_poss <- nrow(C_poss@coords)
+      }
       space <- .95*space
     }
   }
@@ -301,7 +304,9 @@ best_C <- function(bd, conts, thetas, space, kern = NULL, under = TRUE,
                     function(x){error_areas(conts  = conts, C = as.vector(x),
                                             thetas = thetas, under = under)})
   }
+  
 
+  err_area <- matrix(err_area, ncol = nrow(C_poss@coords))
   #Find point that minimizes the maximum area in error
   mean_err_area_poss <- apply(err_area, 2, mean)
   mean_err_area <- min(mean_err_area_poss)
