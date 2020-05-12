@@ -1,2 +1,2 @@
 # ContouR 
-In-progess R package for probabilistic contour models for approximately star-shaped regions
+R package for fitting and generating draws from the Gaussian Star-shaped Contour Model
