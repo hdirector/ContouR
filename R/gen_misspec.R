@@ -18,7 +18,7 @@
 #' @export
 gen_misspec <- function(n_sim, mu, kappa, sigma, C, thetas,  r1_min, 
                         r1_max, r2_min, r2_max, n_curl_min, n_curl_max, 
-                        bd = NULL, rand_loc = TRUE) {
+                        bd, rand_loc) {
   #checks
   stopifnot(r1_min <= r1_max)
   stopifnot(r2_min <= r2_max)
@@ -48,7 +48,7 @@ gen_misspec <- function(n_sim, mu, kappa, sigma, C, thetas,  r1_min,
     
     if (n_curl > 0) {
       #where to start extension 
-      if (rand_loc) {
+      if (rand_loc == TRUE) {
         start_ind <- sample(1:p, 1)
       } else {
         start_ind <- floor(p/2)
