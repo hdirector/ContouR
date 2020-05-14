@@ -151,10 +151,16 @@ pts_in_box <- function(xmid, ymid, x_length, y_length, pts_per_dir) {
 #' @param C center point
 #' @param thetas the angles on which the lines will be specified
 #' @param under boolean indicating approach if more than one point
-error_areas <- function(conts, C, thetas, under = TRUE) {
+#' @param ret_all boolean indicating if intermediary info should be returned
+#' @importFrom maptools spRbind
+#' @importFrom rgeos gDifference
+error_areas <- function(conts, C, thetas, under = TRUE, ret_all = FALSE) {
   n_conts <- length(conts)
   areas <- rep(NA, n_conts)
   l <- make_l(C = C, theta = thetas)
+  approxs <- list()
+  diffs <- list()
+  
   for (j in 1:n_conts) {
     if (n_conts > 1) {
       cont_j <- conts[[j]]
@@ -164,23 +170,30 @@ error_areas <- function(conts, C, thetas, under = TRUE) {
 
     #make approximate polygon
     pts_on_l_j <- pts_on_l(l = l, cont = cont_j, under = under)
-    poss_j <- make_poly(pts_on_l_j, "test_cont")
+    approxs[[j]] <- make_poly(pts_on_l_j, "test_cont")
 
     #compute area in error
-    diff_reg1 <- gDifference(poss_j, cont_j)
-    diff_reg2 <- gDifference(cont_j, poss_j)
+    diff_reg1 <- gDifference(approxs[[j]], cont_j, id = "diff1")
+    diff_reg2 <- gDifference(cont_j, approxs[[j]], id = "diff2")
     if (!is.null(diff_reg1) & !is.null(diff_reg2)) {
       areas[j] <- gArea(keep_poly(diff_reg1)) + gArea(keep_poly(diff_reg2))
+      diffs[[j]] <- spRbind(diff_reg1, diff_reg2)
     } else if (!is.null(diff_reg1)) {
       areas[j] <- gArea(keep_poly(diff_reg1))
+      diffs[[j]] <- diff_reg1
     } else if (!is.null(diff_reg2)) {
       areas[j] <- gArea(keep_poly(diff_reg2))
+      diffs[[j]] <- diff_reg2
     } else {
       areas[j] <- 0
     }
   }
-
-  return(areas)
+  
+  if (ret_all == TRUE) {
+    out <- list("areas" = areas, "diffs" = diffs, "approxs" = approxs)
+  } else {
+    return(areas)
+  }
 }
 
 #' Find estimate for C and p
