@@ -1,0 +1,21 @@
+Package: ContouR
+Title: Implementing Gaussian Star-Shaped Contour Models (GSCMs)
+Version: 1.0.0
+Authors@R: 
+    c(person(given = "Hannah",
+           family = "Director",
+           role = c("aut", "cre"),
+           email = "direch@uw.edu",
+           comment = c(ORCID = "0000-0002-1874-5102")),
+      person(given = "Adrian",
+           family = "Raftery",
+           role = c("aut")))
+Description: Tools for fitting GSCMS
+License: GPL (>= 2)
+Depends: R (>= 3.5.0),  sp, rgeos, raster, MASS, rgeos 
+Imports: Rcpp (>= 0.12.17), utils
+Suggests: fields
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 6.1.1
+LinkingTo: Rcpp, RcppArmadillo
