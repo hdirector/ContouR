@@ -17,5 +17,5 @@ Imports: Rcpp (>= 0.12.17), utils
 Suggests: fields
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 6.1.1
+RoxygenNote: 7.1.1
 LinkingTo: Rcpp, RcppArmadillo
