@@ -49,36 +49,38 @@ rescale <- function(coords, eps, box_size, land = NULL, grid = NULL,
   ymx <- max(sapply(coords, function(x){max(x[,2])}))
   ymn <- min(sapply(coords, function(x){min(x[,2])}))
   y_delta <- ymx - ymn
+  
+  delta <- max(x_delta, y_delta) 
 
   #rescale and shift
   coords_scale <-  lapply(coords, function(x){
-                              eps + (1 - 2*eps)*cbind((x[,1] - xmn)/x_delta,
-                                                      (x[,2] - ymn)/y_delta)})
+                              eps + (1 - 2*eps)*cbind((x[,1] - xmn)/delta,
+                                                      (x[,2] - ymn)/delta)})
   #rescale and shift land
   if (!is.null(land)) {
     land_coords <- lapply(land@polygons, function(x){x@Polygons[[1]]@coords})
     land_scale <-  lapply(land_coords, function(x){
-      eps + (1 - 2*eps)*cbind((x[,1] - xmn)/x_delta,
-                              (x[,2] - ymn)/y_delta)})
+      eps + (1 - 2*eps)*cbind((x[,1] - xmn)/delta,
+                              (x[,2] - ymn)/delta)})
   } else {
     land_scale <- NULL
   }
 
- #rescale and shift grid                                                                                                (x[,2] - ymn)/y_delta)})
+ #rescale and shift grid
   if (!is.null(grid)) {
     keep <- apply(grid, 1, function(x){(x[1] >= xmn) & (x[1] <= xmx) &
                                        (x[2] >= ymn) & (x[2] <= ymx)})
     grid_keep <- grid[keep,]
-    grid_scale <- eps + (1 - 2*eps)*cbind((grid_keep[,1] - xmn)/x_delta,
-                                          (grid_keep[,2] - ymn)/y_delta)
+    grid_scale <- eps + (1 - 2*eps)*cbind((grid_keep[,1] - xmn)/delta,
+                                          (grid_keep[,2] - ymn)/delta)
   } else {
     grid_scale <- NULL
   }
 
   #rescale and shift boundary
   if (!is.null(bd)) {
-    bd_scale <- eps + (1 - 2*eps)*cbind((bd[,1] - xmn)/x_delta,
-                                        (bd[,2] - ymn)/y_delta)
+    bd_scale <- eps + (1 - 2*eps)*cbind((bd[,1] - xmn)/delta,
+                                        (bd[,2] - ymn)/delta)
   } else {
     bd_scale <- NULL
   }
@@ -86,7 +88,7 @@ rescale <- function(coords, eps, box_size, land = NULL, grid = NULL,
 
 
   #compute size of grid boxes in x and y
-  box_size <- (1 - 2*eps)*box_size/c(x_delta, y_delta)
+  box_size <- (1 - 2*eps)*box_size/c(delta, delta)
 
   return(list("coords_scale" = coords_scale, "land_scale" = land_scale,
               "grid_scale" = grid_scale,"bd_scale" = bd_scale,
@@ -112,21 +114,48 @@ make_l <- function(C, theta, r = 5) {
 #' @details If \code{under = TRUE}, if there is more than one point on line l,
 #' than the closest point to the center point is recorded. Otherwise, the
 #' farthest point to the center point is recorded
-pts_on_l <- function(l, cont, under) {
-  stopifnot(is.logical(under))
+#' Compute points on lines l and contour boundary
+#' @param l list of \code{SpatialLines} on which to map l
+#' @param cont list of \code{SpatialPolygons} giving the contours
+#' @param under boolean indicating approach if more than one point
+#' @details If \code{under = TRUE}, if there is more than one point on line l,
+#' than the closest point to the center point is recorded. Otherwise, the
+#' farthest point to the center point is recorded
+pts_on_l <- function(l, cont, under, C) {
   on_l <- lapply(l, function(x){gIntersection(x, cont)})
   on_l <- on_l[!sapply(on_l, is.null)]
-  on_l <- on_l[sapply(on_l, function(x){is(x)[1] == "SpatialLines"})]
-  n_l <- length(l)
   if (under) { #find the second point of the first line (first point is center)
+    #if considering the under case, the first intersection will be on the 
+    # first line extending from C, so non-line features can be ignored
+    on_l <- on_l[sapply(on_l, function(x){is(x)[1] == "SpatialLines"})]
     pts <- t(sapply(on_l, function(x){x@lines[[1]]@Lines[[1]]@coords[2,]}))
   } else {
-    n_sub_l <- sapply(on_l, function(x){length(x@lines[[1]]@Lines)}) #number of lines
+    line_ind <- sapply(on_l, function(x){is(x)[1] == "SpatialLines"})
+    is_line <- which(line_ind)
+    is_coll <- which(!line_ind)
+    n_l <- length(l)
+    
+    #number of sublines in line portion of intersection
+    n_sub_l <- rep(NA, n_l)
+    n_sub_l[is_line] <- sapply(on_l[is_line], 
+                               function(x){length(x@lines[[1]]@Lines)})
     pts <- matrix(nrow = n_l, ncol = 2)
-    for (i in 1:n_l) {
-      #find the second point of the last line
+    for (i in is_line) {
+      #if only lines, find the second point of the last line
       pts[i,] <- on_l[[i]]@lines[[1]]@Lines[[n_sub_l[i]]]@coords[2,]
     }
+    if (any(is_coll)) {
+      n_sub_l[is_coll] <- sapply(on_l[is_coll], 
+                                 function(x){length(x@lineobj@lines[[1]]@Lines)})
+      for (i in is_coll) {
+        # farthest if spatial coll, max of 2nd point of last line and indiv points
+        pts_poss <- rbind(on_l[[i]]@lineobj@lines[[1]]@Lines[[n_sub_l[i]]]@coords[2,],
+                          on_l[[i]]@pointobj@coords)
+        pts[i,] <- pts_poss[which.max(apply(pts_poss, 1, 
+                                            function(x){get_dist(C, x)})),]
+      }
+    }
+    
   }
   return(pts)
 }
@@ -169,7 +198,7 @@ error_areas <- function(conts, C, thetas, under = TRUE, ret_all = FALSE) {
     }
 
     #make approximate polygon
-    pts_on_l_j <- pts_on_l(l = l, cont = cont_j, under = under)
+    pts_on_l_j <- pts_on_l(l = l, cont = cont_j, under = under, C = C)
     approxs[[j]] <- make_poly(pts_on_l_j, "test_cont")
 
     #compute area in error
@@ -188,7 +217,6 @@ error_areas <- function(conts, C, thetas, under = TRUE, ret_all = FALSE) {
       areas[j] <- 0
     }
   }
-  
   if (ret_all == TRUE) {
     out <- list("areas" = areas, "diffs" = diffs, "approxs" = approxs)
   } else {
