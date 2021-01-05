@@ -87,10 +87,10 @@ dist_mat_circle <- function(n) {
 #' @param polys list of contours as polygon objects
 #' @param nrows number of rows in grid, defaults to 100
 #' @param ncols number of columns in grid, defaults to 100
-#' @param xmn 
-#' @param xmx
-#' @param ymn
-#' @param ymx 
+#' @param xmn minimum x value
+#' @param xmx maximum x value
+#' @param ymn minimum y value
+#' @param ymx maximum y value
 #' @export
 prob_field <- function(polys, nrows, ncols, xmn = 0, xmx = 1,
                        ymn = 0, ymx = 1) {
