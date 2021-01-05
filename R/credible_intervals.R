@@ -27,13 +27,13 @@ cred_regs <- function(prob, cred_eval, nrows, ncols) {
 #' @param ncols number of columns in grid
 #' @param r maximum radius to make test lines
 #' @param plotting boolean indicating if plots should be made
-#' @land land polygons for sea ice plots
-#' @not_reg polygons outside region for sea ice plots
+#' @param land land polygons for sea ice plots
+#' @param not_reg polygons outside region for sea ice plots
 #' @param tol below what distance should a point be considered to intersect
 #' with another point or line
 #' @return vector of booleans indicating if crossing was in the credible interval
 #' @importFrom rgeos gIntersects
-#' @importFrom sp SpatialLines
+#' @importFrom sp SpatialLines plot
 #' @export
 #' @details boundary must be a  least one pixel wide to work
 eval_cred_reg <- function(truth, cred_reg, center, thetas, nrows, ncols, r = 5, 
@@ -69,9 +69,9 @@ eval_cred_reg <- function(truth, cred_reg, center, thetas, nrows, ncols, r = 5,
     }
     if (plotting) {
       if (cover[i]) {
-        plot(in_cred_seg, add = T, cex = 1, pch = 20, col = 'black', lwd = 1)
+        plot(in_cred_seg, add = T, cex = 1, pch = '.', col = 'black', lwd = 1)
       } else {
-        plot(in_cred_seg, col = 'blue', add = T, pch = 20, lwd = 1)
+        plot(in_cred_seg, col = 'blue', add = T, pch = '.', lwd = 1)
       }
       points(matrix(center, ncol = 2), pch = 3, col = 'darkgreen', 
              lwd = 2)
